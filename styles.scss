@@ -1,0 +1,114 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    margin: 0;
+
+    background-color: #000;
+
+}
+
+.c-board {
+
+    $self: &;
+
+    display: grid;
+    grid-template-columns: 70px 70px 70px 70px 70px 70px 70px 70px;
+    border-collapse: collapse;
+
+    &__tile {
+
+        width: 70px;
+        height: 70px;
+
+        border-collapse: collapse;
+
+        &--white {
+            background-color: #e09a5d;
+        }
+
+        &--black {
+            background-color: rgb(88, 42, 13);
+        }
+        &--available {
+
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+
+            &::after {
+
+                position: absolute;
+                content: '';
+                width: 30%;
+                height: 30%;
+                background-color: rgba(0, 0, 0, 0.5);
+                border-radius: 100%;
+
+            }
+        }
+        &--take {
+
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+
+            &::after {
+
+                box-sizing: border-box;
+                position: absolute;
+                content: '';
+                width: 95%;
+                height: 95%;
+                background-color: transparent;
+                border-radius: 100%;
+                border: 10px solid rgba(0, 0, 0, 0.5);
+
+            }
+
+        }
+
+        // &--attacked_b {
+        //     filter: brightness(80%);
+        // }
+
+        // &--attacked_w {
+        //     filter: brightness(120%);
+        // }
+
+        // &--attacked_b#{$self}__tile--attacked_w {
+        //     filter: brightness(50%);
+        // }
+
+    }
+
+    &__piece {
+
+        width: 100%;
+        height: 100%;
+
+        cursor: pointer;
+
+        &--active {
+
+            background: radial-gradient(rgba(0, 0, 0, .5), rgba(0, 0, 0, 0));
+
+        }
+
+    }
+
+}
