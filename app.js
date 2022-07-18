@@ -1085,14 +1085,13 @@ function special_promotion(board, info) {
             srcs().forEach((v, i) => {
                 const option = prom_children[i];
                 const img = document.createElement('img');
-                img.classList.add("c-promotion__tab")
+                img.classList.add("c-promotion__tab");
                 img.src = v;
                 img.setAttribute("piece", pieces[i]);
                 option.appendChild(img);
             });
 
             // Working section...
-
 
             prom.addEventListener("pointerdown", e => {
                 const target = e.target;
@@ -1108,14 +1107,15 @@ function special_promotion(board, info) {
                 board.pieces.push(new_piece);
 
                 for (const c of prom_children) {
-                    c.removeChild(c.childNodes[0])
+                    c.removeChild(c.children[0])
                 }
 
                 prom.classList.toggle("c-promotion--active");
 
                 resolve();
+                return;
 
-            });
+            }, {once: true});
 
         }
 
