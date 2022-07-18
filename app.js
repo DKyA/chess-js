@@ -613,12 +613,12 @@ class Knight extends Piece {
                     const generator = combinations(i, j, this.x, this.y);
                     for (let _ = 0; _ < 4; _++) {
                         let s_gt = getTile(...generator.next().value)
-                        if (s_gt && s_gt.occupation.color != this.color) {
+                        if (!s_gt) continue;
+                        if (s_gt.occupation.color != this.color) {
                             this.a_push(s_gt);
+                            continue;
                         }
-                        else {
-                            s_gt.attack(getTile(this.x, this.y));
-                        }
+                        s_gt.attack(getTile(this.x, this.y));
                     }
                 }
             }
