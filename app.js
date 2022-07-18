@@ -1100,7 +1100,29 @@ function special_promotion(board, info) {
 
                 const p_tile = getTile(piece.x, piece.y);
 
-                const new_piece = new Queen(piece.x, piece.y, piece.color);
+                // const new_piece = new Queen(piece.x, piece.y, piece.color);
+                const args = [piece.x, piece.y, piece.color];
+
+                let new_piece;
+                switch(piece_to_change) {
+                    case 'q':
+                        new_piece = new Queen(...args);
+                        break;
+                    case 'r':
+                        new_piece = new Rook(...args);
+                        break;
+                    case 'b':
+                        new_piece = new Bishop(...args);
+                        break;
+                    case 'n':
+                        new_piece = new Knight(...args);
+                        break;
+                    default:
+                        new_piece = new Queen(...args);
+                }
+
+                console.log(new_piece);
+
                 p_tile.remove_piece();
 
                 p_tile.place_piece(new_piece);
