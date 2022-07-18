@@ -42,6 +42,8 @@ class Board {
 
         console.log(this);
 
+        if (MI.masterblock) return;
+
         if (!selected.tile && !info.occupation) return;
         if (!selected.tile && info.occupation.color != MI.player) return;
 
@@ -76,15 +78,18 @@ class Board {
      * @param {Selected} selected target, as defined by the class. Consists of tile and piece on the tile.
      * @param {JSON} info Basically class with details about current target. Newer thing
      */
-    move (selected, info) {
+    async move (selected, info) {
         Recorder.store(selected, info);
-        special_moves(this, selected, info)
+        special_moves(this, selected, info);
         info.tile.remove_piece();
         info.tile.place_piece(selected.piece);
         selected.piece.move(info.x, info.y);
         selected.tile.remove_piece();
         selected.reset();
-        MI.next_turn();
+        await special_promotion(this, info).then(_ => {
+            MI.masterblock = false;
+            MI.next_turn();
+        });
     }
 
     panic_mode(king) {
@@ -216,8 +221,6 @@ class Board {
             for (const t of threat) {
                 if (move == t) return true;
             }
-
-            console.log(chain);
 
             if (((chain) => {
 
@@ -1033,11 +1036,11 @@ function clicked_info(e) {
 
     return {
 
-        'x': x,
-        'y': y,
-        'tile': getTile(x, y),
-        'occupation': occupation,
-        'color': occupation_color()
+        x: x,
+        y: y,
+        tile: getTile(x, y),
+        occupation: occupation,
+        color : occupation_color()
 
     }
 
@@ -1051,6 +1054,81 @@ function* combinations(i, j, x, y) {
     yield [x - i, y + j];
 }
 
+function special_promotion(board, info) {
+
+    return new Promise ((resolve, reject) => {
+
+        const piece = getTile(info.x, info.y).occupation;
+
+        if (piece.acronym !== 'p') {
+            resolve();
+            return;
+        }
+
+        MI.masterblock = true;
+
+        const target = (piece.color > 0) ? 7 : 0;
+
+        if (info.y == target) {
+            const prom = document.querySelector("[js-prom]");
+            prom.classList.toggle("c-promotion--active");
+            const prom_children = prom.children;
+            const pieces = ['r', 'n', 'b', 'q'];
+            const srcs = _ => {
+                const code = (piece.color > 0) ? 'l' : 'd';
+                const res = pieces.map(p => {
+                    return `pieces/Chess_${p}${code}t45.svg`;
+                })
+
+                return res;
+            }
+            srcs().forEach((v, i) => {
+                const option = prom_children[i];
+                const img = document.createElement('img');
+                img.classList.add("c-promotion__tab")
+                img.src = v;
+                img.setAttribute("piece", pieces[i]);
+                option.appendChild(img);
+            });
+
+            // Working section...
+
+
+            prom.addEventListener("pointerdown", e => {
+                const target = e.target;
+                if (!target.getAttribute('piece')) return;
+                const piece_to_change = target.getAttribute('piece');
+
+                const p_tile = getTile(piece.x, piece.y);
+
+                const new_piece = new Queen(piece.x, piece.y, piece.color);
+                p_tile.remove_piece();
+
+                p_tile.place_piece(new_piece);
+                board.pieces.push(new_piece);
+
+                for (const c of prom_children) {
+                    c.removeChild(c.childNodes[0])
+                }
+
+                prom.classList.toggle("c-promotion--active");
+
+                resolve();
+
+            });
+
+        }
+
+    });
+
+}
+
+/**
+ *
+ * @param {Board} board Informace o hracím poli
+ * @param {Selected} selected Objekt s informacemi o vybraném políčku
+ * @param {Info} info JSON Objekt s informacemi o cílovém políčku.
+ */
 function special_moves(board, selected, info) {
     // Detekce prvního pohybu, rošády, en-passant možnost,...
     if ((selected.piece.acronym == 'p' || selected.piece.acronym == 'k' || selected.piece.acronym == 'r') && selected.piece.first_move) {
@@ -1103,13 +1181,14 @@ const Recorder = new Store();
 
 
 const board = new Board();
-board.start("k7/1pQ5/8/3Q4/8/8/8/K7");
+board.start("8/3P4/2Q5/k7/7K/5q2/4p3");
 
 class Mover {
 
     constructor() {
         this.player = 1;
         this.turn = 1;
+        this.masterblock = false;
     }
 
     next_turn() {

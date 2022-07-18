@@ -100,4 +100,73 @@ body {
 .c-board__piece--active {
   background: radial-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0));
 }
+
+.c-promotion {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  -webkit-transform: translate(-50%);
+          transform: translate(-50%);
+  padding: 8px;
+  border-radius: 4px;
+  background-color: white;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  visibility: hidden;
+  width: 220px;
+}
+
+.c-promotion > * {
+  visibility: hidden;
+}
+
+.c-promotion--active {
+  visibility: visible;
+}
+
+.c-promotion--active > * {
+  visibility: visible;
+}
+
+.c-promotion__tabs {
+  background-color: white;
+  padding: 0 4px;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+}
+
+.c-promotion__tabs:last-child {
+  padding-right: 0;
+}
+
+.c-promotion__tabs:first-child {
+  padding-right: 0;
+}
+
+.c-promotion__tab {
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  background-color: #fff;
+  -webkit-transition: .24s ease-in-out;
+  transition: .24s ease-in-out;
+}
+
+.c-promotion__tab:hover, .c-promotion__tab:focus {
+  background-color: rgba(0, 0, 0, 0.1);
+}
 /*# sourceMappingURL=styles.css.map */
