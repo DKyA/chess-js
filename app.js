@@ -40,8 +40,6 @@ class Board {
 
     core (info, selected) {
 
-        console.log(this);
-
         if (MI.masterblock) return;
 
         if (!selected.tile && !info.occupation) return;
@@ -166,11 +164,6 @@ class Board {
                             j--;
                         }
 
-                        counter++;
-                        if (counter > 100) {
-                            console.log("counter broke the loop at third. error");
-                            break;
-                        }
                     }
                 }
             }
@@ -186,21 +179,34 @@ class Board {
     }
 
     czechMate(king) {
-        // if (king.occupation.moves.length) return;
-        // const same_color = board.pieces.map(p => {
-        //     console.log(p);
-        //     if (p.x === false || p.y === false);
-        //     console.log();
-        //     if (p.color == king.occupation.color) return p;
-        // });
+        if (king.occupation.moves.length) return;
 
-        // console.log(same_color);
+        let blocker = false;
+
+        board.pieces.forEach(p => {
+            if (p.color !== king.occupation.color) return;
+
+            p.moves.forEach(m => {
+                if (this.panic_moves(getTile(p.x, p.y), m)) {
+                    blocker = true;
+                }
+            });
+
+        });
+
+        if (blocker) return;
+        // DECLARE VICTORY!
+
+        MI.masterblock = true;
+
+        const win_message = `${(king.occupation.color > 0) ? 'Černá' : 'Bílá'} právě vyhrála!!!`;
+        alert(win_message)
+
     }
 
     calm_mode(king) {
         this.panic[(king.occupation.color > 0) ? 'w' : 'b'] = false;
         this.panic[(king.occupation.color > 0) ? 'w_chain' : 'b_chain'] = false
-        console.log("King is safe.");
     }
 
     /**
@@ -259,7 +265,7 @@ class Board {
      */
     pin (beamed) {
 
-        if (beamed.length !== 2 || (!beamed[0] || !beamed[1])) return;
+        if (beamed.length !== 2 || (!beamed[0] || !beamed[1]) || beamed[0].color == beamed[1].color) return;
         let king_present = false;
 
         beamed.forEach(t => {
@@ -369,8 +375,6 @@ class Selected {
 }
 
 
-
-
 /**
  * Parent class for individual piece classes
  * Should never be called directly
@@ -450,7 +454,6 @@ class Piece {
 
 }
 
-// Each will have a moveset function
 class Pawn extends Piece {
     constructor (x, y, color) {
         super (x, y, color);
@@ -516,10 +519,7 @@ class Rook extends Piece {
             const t = getTile(x, y);
             if (!t) return true;
             if (!t.occupation) return false;
-            if (t.occupation.color != this.color && !beamed.length) {
-                this.a_push(t);
-                return false;
-            }
+            if (t.occupation.color != this.color && !beamed.length) return false;
             t.attack(getTile(this.x, this.y));
             return true;
         }
@@ -612,27 +612,19 @@ class Bishop extends Piece {
 
     f_moves() {
 
-        const all_moves = (i, j) => {
-            const focus = getTile(i, j);
-            if (!focus) return false;
-            if (focus.occupation) {
-                if (!beamed.length) {
-                    if (focus.occupation.color == this.color) {
-                        focus.attack(this.x, this.y);
-                    }
-                    else {
-                        this.a_push(focus);
-                    }
-                }
-                return false;
-            }
+        const validate_moves = (x, y) => {
+            const t = getTile(x, y);
+            if (!t) return true;
+            if (!t.occupation) return false;
+            if (t.occupation.color != this.color && !beamed.length) return false;
+            t.attack(getTile(this.x, this.y));
             return true;
         }
 
         let i = 0, beamed = [];
         for (let x = this.x + 1; x < 8; x++) {
             i--;
-            if (!all_moves(x, this.y + i)) {
+            if (validate_moves(x, this.y + i)) {
                 beamed.push(getTile(x, this.y + i));
             }
             if (!beamed.length) {
@@ -644,7 +636,7 @@ class Bishop extends Piece {
         i = 0, beamed = [];
         for (let x = this.x - 1; x >= 0; x--) {
             i++;
-            if (!all_moves(x, this.y + i)) {
+            if (validate_moves(x, this.y + i)) {
                 beamed.push(getTile(x, this.y + i));
             }
             if (!beamed.length) {
@@ -656,7 +648,7 @@ class Bishop extends Piece {
         i = 0, beamed = [];
         for (let y = this.y - 1; y >= 0; y--) {
             i--;
-            if (!all_moves(this.x + i, y)) {
+            if (validate_moves(this.x + i, y)) {
                 beamed.push(getTile(this.x + i, y));
             }
             if (!beamed.length) {
@@ -668,7 +660,7 @@ class Bishop extends Piece {
         i = 0, beamed = [];
         for (let y = this.y + 1; y < 8; y++) {
             i++;
-            if (!all_moves(this.x + i, y)) {
+            if (validate_moves(this.x + i, y)) {
                 beamed.push(getTile(this.x + i, y));
             }
             if (!beamed.length) {
@@ -691,27 +683,21 @@ class Queen extends Piece {
 
     f_moves() {
 
-        const all_moves = (i, j) => {
-            const focus = getTile(i, j);
-            if (!focus) return false;
-            if (focus.occupation) {
-                if (!beamed.length) {
-                    if (focus.occupation.color == this.color) {
-                        focus.attack(getTile(this.x, this.y));
-                    }
-                    else {
-                        this.a_push(focus);
-                    }
-                }
-                return false;
-            }
+
+        const validate_moves = (x, y) => {
+            const t = getTile(x, y);
+            if (!t) return true;
+            if (!t.occupation) return false;
+            if (t.occupation.color != this.color && !beamed.length) return false;
+            t.attack(getTile(this.x, this.y));
             return true;
         }
 
         let i = 0, beamed = [];
+
         for (let x = this.x + 1; x < 8; x++) {
             i--;
-            if (!all_moves(x, this.y + i)) {
+            if (validate_moves(x, this.y + i)) {
                 beamed.push(getTile(x, this.y + i));
             }
             if (!beamed.length) {
@@ -723,7 +709,7 @@ class Queen extends Piece {
         i = 0, beamed = [];
         for (let x = this.x - 1; x >= 0; x--) {
             i++;
-            if (!all_moves(x, this.y + i)) {
+            if (validate_moves(x, this.y + i)) {
                 beamed.push(getTile(x, this.y + i));
             }
             if (!beamed.length) {
@@ -735,7 +721,7 @@ class Queen extends Piece {
         i = 0, beamed = [];
         for (let y = this.y - 1; y >= 0; y--) {
             i--;
-            if (!all_moves(this.x + i, y)) {
+            if (validate_moves(this.x + i, y)) {
                 beamed.push(getTile(this.x + i, y));
             }
             if (!beamed.length) {
@@ -747,7 +733,7 @@ class Queen extends Piece {
         i = 0, beamed = [];
         for (let y = this.y + 1; y < 8; y++) {
             i++;
-            if (!all_moves(this.x + i, y)) {
+            if (validate_moves(this.x + i, y)) {
                 beamed.push(getTile(this.x + i, y));
             }
             if (!beamed.length) {
@@ -759,7 +745,7 @@ class Queen extends Piece {
         // Rook-like
         beamed = [];
         for (let i = this.x - 1; i >= 0; i--) {
-            if (!all_moves(i, this.y)) {
+            if (validate_moves(i, this.y)) {
                 beamed.push(getTile(i, this.y));
             }
             if (!beamed.length) {
@@ -770,7 +756,7 @@ class Queen extends Piece {
 
         beamed = [];
         for (let i = this.x + 1; i < 8; i++) {
-            if (!all_moves(i, this.y)) {
+            if (validate_moves(i, this.y)) {
                 beamed.push(getTile(i, this.y));
             }
             if (!beamed.length) {
@@ -781,7 +767,7 @@ class Queen extends Piece {
 
         beamed = [];
         for (let i = this.y - 1; i >= 0; i--) {
-            if (!all_moves(this.x, i)) {
+            if (validate_moves(this.x, i)) {
                 beamed.push(getTile(this.x, i));
             }
             if (!beamed.length) {
@@ -792,7 +778,7 @@ class Queen extends Piece {
 
         beamed = [];
         for (let i = this.y + 1; i < 8; i++) {
-            if (!all_moves(this.x, i)) {
+            if (validate_moves(this.x, i)) {
                 beamed.push(getTile(this.x, i));
             }
             if (!beamed.length) {
@@ -800,7 +786,6 @@ class Queen extends Piece {
             }
         }
         board.pin(beamed);
-
 
     }
 
@@ -1174,13 +1159,6 @@ class Store {
     }
 }
 
-const Recorder = new Store();
-
-
-const board = new Board();
-const norm = 'k3p3/8/3B1K2/8/8/8/8/8'
-board.start(norm);
-
 class Mover {
 
     constructor() {
@@ -1216,6 +1194,12 @@ class Mover {
         });
     }
 }
+
+const Recorder = new Store();
+
+const board = new Board();
+const norm = 'k6K/1q6/2q5/8/8/8/8/BB6'
+board.start(norm);
 
 const MI = new Mover();
 MI.init_moves();
