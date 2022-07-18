@@ -106,7 +106,7 @@ class Board {
 
             for (let f = 0; f < king.attacked.length; f++) {
                 const attacker = king.attacked[f].occupation;
-                if (attacker.acronym == 'p' || attacker.acronym == 'n') return false;
+                if (attacker.color == king.occupation.color) continue;
 
                 res.push([]);
                 res[f].push(getTile(king.x, king.y));
@@ -115,7 +115,7 @@ class Board {
                 let counter = 0;
 
                 if (king.x == attacker.x && king.y != attacker.y && (attacker.acronym == 'q' || attacker.acronym == 'r')) {
-                    for (let i = king.y; ;) {
+                    for (let i = king.y; i >= 0 && i < 8;) {
                         if (i != king.y) {
                             res[f].push(getTile(king.x, i));
                         }
@@ -125,17 +125,12 @@ class Board {
                             continue;
                         }
                         i++;
-                        counter++;
-                        if (counter > 100) {
-                            console.log("counter broke the loop at first");
-                            break;
-                        }
                     }
                 }
 
                 // Same thing, but row.
                 if (king.y == attacker.y && king.x != attacker.x && (attacker.acronym == 'q' || attacker.acronym == 'r')) {
-                    for (let i = king.x; ;) {
+                    for (let i = king.x; i >= 0 && i < 8;) {
                         if (i != king.x) {
                             res[f].push(getTile(i, king.y));
                         }
@@ -145,15 +140,10 @@ class Board {
                             continue;
                         }
                         i++;
-                        counter++;
-                        if (counter > 100) {
-                            console.log("counter broke the loop at second");
-                            break;
-                        }
                     }
                 }
 
-                if (king.y != attacker.y && king.x != attacker.x && (attacker.acronym == 'q' || attacker.acronym == 'b')) {
+                if (king.y != attacker.y && king.x != attacker.x && (attacker.acronym == 'q' || attacker.acronym == 'b' || attacker.acronym == 'p')) {
 
                     let counter = 0;
                     let i = attacker.x;
@@ -175,6 +165,7 @@ class Board {
                         else {
                             j--;
                         }
+
                         counter++;
                         if (counter > 100) {
                             console.log("counter broke the loop at third. error");
@@ -187,7 +178,23 @@ class Board {
             return res;
 
         })(king);
-        console.log("KING IS IN CHECK! HELP!!!!");
+
+        // Look for mate
+
+        this.czechMate(king);
+
+    }
+
+    czechMate(king) {
+        // if (king.occupation.moves.length) return;
+        // const same_color = board.pieces.map(p => {
+        //     console.log(p);
+        //     if (p.x === false || p.y === false);
+        //     console.log();
+        //     if (p.color == king.occupation.color) return p;
+        // });
+
+        // console.log(same_color);
     }
 
     calm_mode(king) {
@@ -206,15 +213,12 @@ class Board {
         // Already filtered...
 
         const king = this.panic[(old.occupation.color > 0) ? 'w' : 'b']
-        const threat = king.attacked;
+        const threat = king.attacked.filter(a => {
+                return a.occupation.color !== king.occupation.color;
+            });
+
         const chain = this.panic[(old.occupation.color > 0) ? 'w_chain' : 'b_chain'];
 
-        if (!chain) {
-            console.log(chain, this.panic);
-            console.log("So basically, nefunguje chain. Tady je jenom malej log s infem. As of now, nemám tucha.");
-            console.log("Každopádně ve funkci panic_moves() returnuju");
-            return;
-        }
         // I can't really escape by moving with the chain, can I...
         if (old.occupation.acronym == 'k') {
 
@@ -238,14 +242,9 @@ class Board {
             return false;
         }
 
-        // Eliminate
-        // ... By blocking?
-
         if (threat.length > 1) return false;
-        const t = threat[0];
-        if (t.occupation.acronym == 'n' || t.occupation.acronym == 'p') return false;
 
-        for (const pos of chain) {
+        for (const pos of chain[0]) {
             if (pos == move) {
                 return true;
             }
@@ -404,7 +403,8 @@ class Piece {
         this.moves.forEach(m => {
             // Implement also panic function...
 
-            if (board.panic[(this.color > 0) ? 'w' : 'b'] != false) {
+            if (board.panic[(this.color > 0) ? 'w' : 'b']) {
+                // Queries for OK moves
                 if (!board.panic_moves(getTile(this.x, this.y), m)) return;
             }
 
@@ -480,10 +480,7 @@ class Pawn extends Piece {
             if (focus) {
                 focus.attack(getTile(this.x, this.y));
                 if (focus.occupation && focus.occupation.color != this.color) {
-                    this.a_push(focus);
-                }
-                else {
-                    focus.attack(getTile(this.x, this.y));
+                    this.moves.push(focus);
                 }
             }
         });
@@ -515,44 +512,21 @@ class Rook extends Piece {
 
     f_moves() {
 
-
-        const x_moves = i => {
-            if (getTile(i, this.y).occupation) {
-                if (getTile(i, this.y).occupation.color != this.color) {
-                    if (!beamed.length) {
-                        this.a_push(getTile(i, this.y));
-                    }
-                }
-                else {
-                    getTile(i, this.y).attack(getTile(this.x, this.y));
-                }
+        const validate_moves = (x, y) => {
+            const t = getTile(x, y);
+            if (!t) return true;
+            if (!t.occupation) return false;
+            if (t.occupation.color != this.color && !beamed.length) {
+                this.a_push(t);
                 return false;
             }
-
+            t.attack(getTile(this.x, this.y));
             return true;
         }
 
-        const y_moves = i => {
-            if (getTile(this.x, i).occupation) {
-                if (getTile(this.x, i).occupation.color != this.color) {
-                    if (!beamed.length) {
-                        this.a_push(getTile(this.x, i));
-                    }
-                }
-                else {
-                    getTile(this.x, i).attack(getTile(this.x, this.y));
-                }
-                return false;
-            }
-            return true;
-        }
-
-        /**
-        * All tiles with occupation that are THEORETICALLY within range.
-        */
         let beamed = [];
         for (let i = this.x - 1; i >= 0; i--) {
-            if (!x_moves(i)) {
+            if (validate_moves(i, this.y)) {
                 beamed.push(getTile(i, this.y));
             }
             if (!beamed.length) {
@@ -563,7 +537,7 @@ class Rook extends Piece {
 
         beamed = [];
         for (let i = this.x + 1; i < 8; i++) {
-            if (!x_moves(i)) {
+            if (validate_moves(i, this.y)) {
                 beamed.push(getTile(i, this.y));
             }
             if (!beamed.length) {
@@ -574,7 +548,7 @@ class Rook extends Piece {
 
         beamed = [];
         for (let i = this.y - 1; i >= 0; i--) {
-            if (!y_moves(i)) {
+            if (validate_moves(this.x, i)) {
                 beamed.push(getTile(this.x, i));
             }
             if (!beamed.length) {
@@ -585,7 +559,7 @@ class Rook extends Piece {
 
         beamed = [];
         for (let i = this.y + 1; i < 8; i++) {
-            if (!y_moves(i)) {
+            if (validate_moves(this.x, i)) {
                 beamed.push(getTile(this.x, i));
             }
             if (!beamed.length) {
@@ -593,6 +567,7 @@ class Rook extends Piece {
             }
         }
         board.pin(beamed);
+
     }
 
 }
@@ -1065,88 +1040,88 @@ function special_promotion(board, info) {
             return;
         }
 
-        MI.masterblock = true;
-
         const target = (piece.color > 0) ? 7 : 0;
 
-        if (info.y == target) {
-            const prom = document.querySelector("[js-prom]");
-            prom.classList.toggle("c-promotion--active");
-            const prom_children = prom.children;
-            const pieces = ['r', 'n', 'b', 'q'];
-            const srcs = _ => {
-                const code = (piece.color > 0) ? 'l' : 'd';
-                const res = pieces.map(p => {
-                    return `pieces/Chess_${p}${code}t45.svg`;
-                })
-
-                return res;
-            }
-            srcs().forEach((v, i) => {
-                const option = prom_children[i];
-                const img = document.createElement('img');
-                img.classList.add("c-promotion__tab");
-                img.src = v;
-                img.setAttribute("piece", pieces[i]);
-                option.appendChild(img);
-            });
-
-            // Working section...
-
-            prom.addEventListener("pointerdown", e => {
-                const target = e.target;
-                if (!target.getAttribute('piece')) return;
-                const piece_to_change = target.getAttribute('piece');
-
-                const p_tile = getTile(piece.x, piece.y);
-
-                // const new_piece = new Queen(piece.x, piece.y, piece.color);
-                const args = [piece.x, piece.y, piece.color];
-
-                let new_piece;
-                switch(piece_to_change) {
-                    case 'q':
-                        new_piece = new Queen(...args);
-                        break;
-                    case 'r':
-                        new_piece = new Rook(...args);
-                        break;
-                    case 'b':
-                        new_piece = new Bishop(...args);
-                        break;
-                    case 'n':
-                        new_piece = new Knight(...args);
-                        break;
-                    default:
-                        new_piece = new Queen(...args);
-                }
-
-                console.log(new_piece);
-
-                p_tile.remove_piece();
-
-                p_tile.place_piece(new_piece);
-                board.pieces.push(new_piece);
-
-                for (const c of prom_children) {
-                    c.removeChild(c.children[0])
-                }
-
-                prom.classList.toggle("c-promotion--active");
-
-                resolve();
-                return;
-
-            }, {once: true});
-
+        if (info.y != target) {
+            resolve();
+            return;
         }
+
+        MI.masterblock = true;
+
+        const prom = document.querySelector("[js-prom]");
+        prom.classList.toggle("c-promotion--active");
+        const prom_children = prom.children;
+        const pieces = ['r', 'n', 'b', 'q'];
+        const srcs = _ => {
+            const code = (piece.color > 0) ? 'l' : 'd';
+            const res = pieces.map(p => {
+                return `pieces/Chess_${p}${code}t45.svg`;
+            })
+
+            return res;
+        }
+        srcs().forEach((v, i) => {
+            const option = prom_children[i];
+            const img = document.createElement('img');
+            img.classList.add("c-promotion__tab");
+            img.src = v;
+            img.setAttribute("piece", pieces[i]);
+            option.appendChild(img);
+        });
+
+        // Working section...
+
+        prom.addEventListener("pointerdown", e => {
+            const target = e.target;
+            if (!target.getAttribute('piece')) return;
+            const piece_to_change = target.getAttribute('piece');
+
+            const p_tile = getTile(piece.x, piece.y);
+
+            // const new_piece = new Queen(piece.x, piece.y, piece.color);
+            const args = [piece.x, piece.y, piece.color];
+
+            let new_piece;
+            switch(piece_to_change) {
+                case 'q':
+                    new_piece = new Queen(...args);
+                    break;
+                case 'r':
+                    new_piece = new Rook(...args);
+                    break;
+                case 'b':
+                    new_piece = new Bishop(...args);
+                    break;
+                case 'n':
+                    new_piece = new Knight(...args);
+                    break;
+                default:
+                    new_piece = new Queen(...args);
+            }
+
+            p_tile.remove_piece();
+
+            p_tile.place_piece(new_piece);
+            board.pieces.push(new_piece);
+
+            for (const c of prom_children) {
+                c.removeChild(c.children[0])
+            }
+
+            prom.classList.toggle("c-promotion--active");
+
+            resolve();
+            return;
+
+        }, {once: true});
+
 
     });
 
 }
 
 /**
- *
  * @param {Board} board Informace o hracím poli
  * @param {Selected} selected Objekt s informacemi o vybraném políčku
  * @param {Info} info JSON Objekt s informacemi o cílovém políčku.
@@ -1203,7 +1178,8 @@ const Recorder = new Store();
 
 
 const board = new Board();
-board.start("8/3P4/2Q5/k7/7K/5q2/4p3");
+const norm = 'k3p3/8/3B1K2/8/8/8/8/8'
+board.start(norm);
 
 class Mover {
 

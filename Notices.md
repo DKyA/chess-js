@@ -4,3 +4,5 @@
 
 # TODO:
     - Endgame conditions,...
+
+# Known Bugs:
