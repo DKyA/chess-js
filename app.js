@@ -265,21 +265,40 @@ class Board {
      */
     pin (beamed) {
 
-        if (beamed.length !== 2 || (!beamed[0] || !beamed[1]) || beamed[0].color == beamed[1].color) return;
-        let king_present = false;
+        // There is king; there are only two pieces; the other piece is of different color
+        let condition = [false, false, false];
+        let middle = false;
+        const source = beamed.shift();
 
-        beamed.forEach(t => {
-            if (t.occupation.acronym == 'k') {
-                king_present = true;
+        for (const t of beamed) {
+
+            if (!t.occupation) continue;
+
+            if (t.occupation.color === source.occupation.color) return;
+
+            if (t.occupation.acronym !== 'k' && !condition[1]) {
+                condition[1] = true;
+                middle = t;
+                continue;
+            }
+
+            if (t.occupation.acronym !== 'k' && condition[1]) return;
+
+            if (t.occupation.acronym === 'k' && middle) {
+                condition[0] = true;
+                if (t.occupation.color !== middle.occupation.color) return;
+                condition[2] = true;
+
+                if (condition[0] && condition[1] && condition[2]) break;
                 return;
             }
-        });
-
-        if (king_present && beamed[0].acronym != 'k') {
-            beamed[0].occupation.forbid_movement = true;
-            beamed[0].occupation.pin();
 
         }
+
+        if (!(condition[0] && condition[1] && condition[2])) return;
+        // PIN IT!
+
+        middle.occupation.pin(source, beamed);
 
     }
 
@@ -346,8 +365,6 @@ class Tile {
 
 }
 
-
-// This is the target that is further played with in core function.
 class Selected {
 
     constructor (tile = false, piece = false) {
@@ -373,7 +390,6 @@ class Selected {
     }
 
 }
-
 
 /**
  * Parent class for individual piece classes
@@ -442,14 +458,55 @@ class Piece {
         this.moves.push(tile);
     }
 
-    /**
-     * Nullifying all possible moves.
-     */
-    pin () {
-        this.moves.forEach(t => {
-            t.retreat();
-        })
-        this.moves = [];
+    validate_moves(beamed, x, y) {
+
+        const t = getTile(x, y);
+        if (!t) return false;
+        if (t.occupation) {
+            if (t.occupation.color != this.color) {
+                if (!beamed.length) {
+                    this.a_push(t);
+                }
+            }
+            return true;
+        }
+        if (!beamed.length) {
+            this.a_push(t);
+        }
+        return (beamed => {
+            if (!beamed.length) return false;
+            return true;
+
+        })(beamed);
+    }
+
+    pin (threat, beamed) {
+
+        const pinned_moves = [];
+
+        this.moves.forEach(m => {
+            if (m === threat) {
+                pinned_moves.push(m);
+                return;
+            }
+            threat.occupation.moves.forEach(t => {
+                if (m === t) {
+                    pinned_moves.push(m);
+                    return;
+                }
+
+                for (const b of beamed) {
+                    if (b === m) {
+                        pinned_moves.push(m);
+                        continue;
+                    }
+                    if (!b.occupation.acronym == 'k') break;
+                }
+            });
+        });
+
+        this.moves = pinned_moves;
+
     }
 
 }
@@ -515,57 +572,40 @@ class Rook extends Piece {
 
     f_moves() {
 
-        const validate_moves = (x, y) => {
-            const t = getTile(x, y);
-            if (!t) return true;
-            if (!t.occupation) return false;
-            if (t.occupation.color != this.color && !beamed.length) return false;
-            t.attack(getTile(this.x, this.y));
-            return true;
-        }
-
         let beamed = [];
         for (let i = this.x - 1; i >= 0; i--) {
-            if (validate_moves(i, this.y)) {
+            if (this.validate_moves(beamed, i, this.y)) {
                 beamed.push(getTile(i, this.y));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(i, this. y));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         beamed = [];
         for (let i = this.x + 1; i < 8; i++) {
-            if (validate_moves(i, this.y)) {
+            if (this.validate_moves(beamed, i, this.y)) {
                 beamed.push(getTile(i, this.y));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(i, this. y));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         beamed = [];
         for (let i = this.y - 1; i >= 0; i--) {
-            if (validate_moves(this.x, i)) {
+            if (this.validate_moves(beamed, this.x, i)) {
                 beamed.push(getTile(this.x, i));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(this.x, i));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         beamed = [];
         for (let i = this.y + 1; i < 8; i++) {
-            if (validate_moves(this.x, i)) {
+            if (this.validate_moves(beamed, this.x, i)) {
                 beamed.push(getTile(this.x, i));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(this.x, i));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
     }
@@ -612,61 +652,44 @@ class Bishop extends Piece {
 
     f_moves() {
 
-        const validate_moves = (x, y) => {
-            const t = getTile(x, y);
-            if (!t) return true;
-            if (!t.occupation) return false;
-            if (t.occupation.color != this.color && !beamed.length) return false;
-            t.attack(getTile(this.x, this.y));
-            return true;
-        }
-
         let i = 0, beamed = [];
         for (let x = this.x + 1; x < 8; x++) {
             i--;
-            if (validate_moves(x, this.y + i)) {
+            if (this.validate_moves(beamed, x, this.y + i)) {
                 beamed.push(getTile(x, this.y + i));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(x, this.y + i));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         i = 0, beamed = [];
         for (let x = this.x - 1; x >= 0; x--) {
             i++;
-            if (validate_moves(x, this.y + i)) {
+            if (this.validate_moves(beamed, x, this.y + i)) {
                 beamed.push(getTile(x, this.y + i));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(x, this.y + i));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         i = 0, beamed = [];
         for (let y = this.y - 1; y >= 0; y--) {
             i--;
-            if (validate_moves(this.x + i, y)) {
+            if (this.validate_moves(beamed, this.x + i, y)) {
                 beamed.push(getTile(this.x + i, y));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(this.x + i, y));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         i = 0, beamed = [];
         for (let y = this.y + 1; y < 8; y++) {
             i++;
-            if (validate_moves(this.x + i, y)) {
+            if (this.validate_moves(beamed, this.x + i, y)) {
                 beamed.push(getTile(this.x + i, y));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(this.x + i, y));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
     }
@@ -683,108 +706,82 @@ class Queen extends Piece {
 
     f_moves() {
 
-
-        const validate_moves = (x, y) => {
-            const t = getTile(x, y);
-            if (!t) return true;
-            if (!t.occupation) return false;
-            if (t.occupation.color != this.color && !beamed.length) return false;
-            t.attack(getTile(this.x, this.y));
-            return true;
-        }
-
         let i = 0, beamed = [];
 
         for (let x = this.x + 1; x < 8; x++) {
             i--;
-            if (validate_moves(x, this.y + i)) {
+            if (this.validate_moves(beamed, x, this.y + i)) {
                 beamed.push(getTile(x, this.y + i));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(x, this.y + i));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         i = 0, beamed = [];
         for (let x = this.x - 1; x >= 0; x--) {
             i++;
-            if (validate_moves(x, this.y + i)) {
+            if (this.validate_moves(beamed, x, this.y + i)) {
                 beamed.push(getTile(x, this.y + i));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(x, this.y + i));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         i = 0, beamed = [];
         for (let y = this.y - 1; y >= 0; y--) {
             i--;
-            if (validate_moves(this.x + i, y)) {
+            if (this.validate_moves(beamed, this.x + i, y)) {
                 beamed.push(getTile(this.x + i, y));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(this.x + i, y));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         i = 0, beamed = [];
         for (let y = this.y + 1; y < 8; y++) {
             i++;
-            if (validate_moves(this.x + i, y)) {
+            if (this.validate_moves(beamed, this.x + i, y)) {
                 beamed.push(getTile(this.x + i, y));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(this.x + i, y));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         // Rook-like
         beamed = [];
         for (let i = this.x - 1; i >= 0; i--) {
-            if (validate_moves(i, this.y)) {
+            if (this.validate_moves(beamed, i, this.y)) {
                 beamed.push(getTile(i, this.y));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(i, this. y));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         beamed = [];
         for (let i = this.x + 1; i < 8; i++) {
-            if (validate_moves(i, this.y)) {
+            if (this.validate_moves(beamed, i, this.y)) {
                 beamed.push(getTile(i, this.y));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(i, this. y));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         beamed = [];
         for (let i = this.y - 1; i >= 0; i--) {
-            if (validate_moves(this.x, i)) {
+            if (this.validate_moves(beamed, this.x, i)) {
                 beamed.push(getTile(this.x, i));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(this.x, i));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
         beamed = [];
         for (let i = this.y + 1; i < 8; i++) {
-            if (validate_moves(this.x, i)) {
+            if (this.validate_moves(beamed, this.x, i)) {
                 beamed.push(getTile(this.x, i));
             }
-            if (!beamed.length) {
-                this.a_push(getTile(this.x, i));
-            }
         }
+        beamed.unshift(getTile(this.x, this.y));
         board.pin(beamed);
 
     }
@@ -823,7 +820,6 @@ class King extends Piece {
     f_moves() {
 
         this.moves = [];
-
         if (attacked_by_enemy(getTile(this.x, this.y), this)) {
             board.panic_mode(getTile(this.x, this.y));
         }
@@ -835,11 +831,12 @@ class King extends Piece {
             for (let j = -1; j < 2; j++) {
                 if (i == 0 && j == 0) continue;
                 let s_gt = getTile(this.x + i, this.y + j)
-                if (s_gt && (!s_gt.occupation || s_gt.occupation.color != this.color)) {
+                if (!s_gt) continue;
+                if (!s_gt.occupation || s_gt.occupation.color != this.color) {
                     const prot = (s_gt => {
                         let block = false;
                         for (const x of s_gt.attacked) {
-                            if (x.occupation.color != this.color) {
+                            if (x.occupation.color !== this.color) {
                                 block = true;
                                 break;
                             }
@@ -847,22 +844,20 @@ class King extends Piece {
                         return block;
                     })(s_gt);
                     if (prot) continue;
-                    this.a_push(s_gt);
-                }
-                if (s_gt && s_gt.occupation && s_gt.occupation.color == this.color) {
-                    s_gt.attack(getTile(this.x, this.y));
+                    this.moves.push(s_gt);
                 }
             }
         }
 
         const res_castle = i => {
 
-            if (getTile(this.x, this.y).attacked.length) return false;
             let i_tile = getTile(i, this.y);
+            for (const a of i_tile.attacked) {
+                if (a.occupation.color !== this.color) return false;
+            }
             let increment = (i > 4) ? 2 : -2;
-            if (attacked_by_enemy(i_tile, this)) return false;
             if ((i == 7 || i == 0) && i_tile.occupation && i_tile.occupation.acronym == 'r' && i_tile.occupation.color == this.color && i_tile.occupation.first_move) {
-                this.a_push(getTile(this.x + increment, this.y));
+                this.moves.push(getTile(this.x + increment, this.y));
                 return false;
             }
             if (i_tile.occupation) return false;
@@ -885,7 +880,6 @@ class King extends Piece {
     }
 
 }
-
 
 /**
  * Function that translates fen string
@@ -1198,7 +1192,9 @@ class Mover {
 const Recorder = new Store();
 
 const board = new Board();
-const norm = 'k6K/1q6/2q5/8/8/8/8/BB6'
+// DO NOT TOUCH!!!!!
+const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+// TOUCH THIS!!!
 board.start(norm);
 
 const MI = new Mover();
