@@ -303,6 +303,11 @@ class Board {
 
     }
 
+    d_b_r() {
+        MI.masterblock = true;
+        window.alert("Deuce by repetition");
+    }
+
 }
 
 class Tile {
@@ -1141,6 +1146,7 @@ function attacked_by_enemy (tile, piece) {
 class Store {
     constructor() {
         this.moves = [];
+        this.deuce_available = false;
     }
     store(selected, info) {
         this.moves.push({
@@ -1150,7 +1156,32 @@ class Store {
             to: info.tile
         });
 
+        this.deuce_by_repetition();
+
     }
+
+    deuce_by_repetition() {
+
+        let check = [];
+        if (!this.moves.length) return;
+
+        for (let i = this.moves.length - 1; i > this.moves.length - 8; i = i - 2) {
+            if (!this.moves[i]) return;
+            check.push(this.moves[i].to);
+        }
+        console.log(check);
+        if (check[0] == check[2] && check[1] == check[3] && check[4] == check[6]) {
+            if (this.deuce_available) {
+                board.d_b_r();
+                return;
+            }
+            this.deuce_available = true;
+            return;
+        }
+        this.deuce_available = false;
+        return;
+    }
+
 }
 
 class Mover {
@@ -1164,7 +1195,24 @@ class Mover {
     next_turn() {
         this.turn++;
         this.player = (this.turn % 2) ? 1 : -1;
+
+        this.check_for_deuce();
         this.init_moves();
+    }
+
+    check_for_deuce() {
+
+        const kings = [];
+        for (const p of board.pieces) {
+            if (p.x === false || p.y === false) continue;
+            if (p.acronym !== 'k') return;
+            kings.push(p);
+        }
+
+        if (kings.length !== 2) return;
+        window.alert("Remíza na materiál")
+        this.masterblock = true;
+
     }
 
     init_moves() {
@@ -1195,7 +1243,7 @@ const board = new Board();
 // DO NOT TOUCH!!!!!
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
-board.start(norm);
+board.start("4k3/8/8/p7/8/8/8/3K4");
 
 const MI = new Mover();
 MI.init_moves();
