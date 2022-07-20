@@ -77,6 +77,7 @@ class Board {
      * @param {JSON} info Basically class with details about current target. Newer thing
      */
     async move (selected, info) {
+        if (!selected.piece) return;
         Recorder.store(selected, info);
         special_moves(this, selected, info);
         info.tile.remove_piece();
@@ -335,7 +336,6 @@ class Tile {
     place_piece(piece) {
         this.occupation = piece;
         this.element.appendChild(piece.element);
-
     }
 
     remove_piece() {
