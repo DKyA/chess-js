@@ -22,6 +22,8 @@ class Board {
             }
         }
 
+        this.Al_control = false;
+
     }
 
     start(fen) {
@@ -38,7 +40,7 @@ class Board {
 
     }
 
-    core (selected, info) {
+    core (selected, info, Al = false) {
 
         if (MI.masterblock) return;
 
@@ -50,7 +52,7 @@ class Board {
             return false;
         }
 
-        if ((!selected.tile && info.occupation) || (selected.piece && info.color == selected.piece.color)) {
+        if (((!selected.tile && info.occupation) || (selected.piece && info.color == selected.piece.color)) && !Al) {
             selected = selected.update(info.tile, info.occupation);
             return false;
         }
@@ -390,9 +392,11 @@ class Selected {
     }
 
     update (tile, piece) {
+
         if (this.piece) {
             this.piece.deactivate();
         }
+
         this.tile = tile;
         this.piece = piece;
         this.piece.activate();
@@ -1273,6 +1277,7 @@ class Mover {
         this.player = 1;
         this.turn = 1;
         this.masterblock = false;
+        this.disabled_Al = false;
     }
 
     next_turn() {
@@ -1284,8 +1289,21 @@ class Mover {
 
         if (this.player > 0) return;
 
-        new Al_move();
+        this.Al();
 
+    }
+
+    Al () {
+        if (!this.disabled_Al) {
+            new Al_move();
+        }
+    }
+
+    /**
+     * @param {boolean} b Status of Al
+     */
+    toggle_Al(b) {
+        this.disabled_Al = !b;
     }
 
     check_for_deuce() {
@@ -1333,6 +1351,8 @@ class Al_move {
         this.update_pieces();
         this.random_move();
 
+        board.Al_control = -1;
+
     }
 
     update_pieces() {
@@ -1360,10 +1380,12 @@ class Al_move {
         const origin = new Selected(getTile(piece.x, piece.y));
         const target = new Info(move);
 
-        if (board.core(origin, target) === false) {
+        const output = board.core(origin, target, true);
+
+        if (output === false) {
             this.random_move();
         }
-        if (board.core(origin, target === undefined)) return;
+        if (output === undefined) return;
 
     }
 
@@ -1377,8 +1399,7 @@ const board = new Board();
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
 
-// 
-board.start('rnbqkbnr/ppp2ppp/8/8/P5PP/3p4/1PPPpP2/RNBQKB1R');
+board.start('rnb1k1nr/ppp2ppp/8/8/P2p1P2/3P4/1PPN1qPP/R1BK1BNR');
 
 const MI = new Mover();
 MI.init_moves();
