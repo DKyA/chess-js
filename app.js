@@ -486,7 +486,9 @@ class Piece {
                 if (!beamed.length) {
                     this.a_push(t);
                 }
+                return true;
             }
+            t.attack(getTile(this.x, this.y));
             return true;
         }
         if (!beamed.length) {
