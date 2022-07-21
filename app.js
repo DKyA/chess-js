@@ -32,39 +32,39 @@ class Board {
         board_src.addEventListener("pointerdown", (e) => {
 
             let info = clicked_info(e);
-            this.core(info, selected);
+            this.core(selected, info);
 
         });
 
     }
 
-    core (info, selected) {
+    core (selected, info) {
 
         if (MI.masterblock) return;
 
-        if (!selected.tile && !info.occupation) return;
+        if (!selected.tile && !info.occupation) return false;
         if (!selected.tile && info.occupation.color != MI.player) return;
 
         if (selected.tile == info.tile) {
             selected.reset();
-            return;
+            return false;
         }
 
         if ((!selected.tile && info.occupation) || (selected.piece && info.color == selected.piece.color)) {
             selected = selected.update(info.tile, info.occupation);
-            return;
+            return false;
         }
 
         if (selected.piece) {
 
             if (this.panic[(MI.player > 0) ? 'w' : 'b']) {
-                if (!this.panic_moves(selected.tile, info.tile)) return;
+                if (!this.panic_moves(selected.tile, info.tile)) return false;
             }
 
             selected.piece.moves.forEach(m => {
                 if (m == info.tile) {
                     this.move(selected, info);
-                    return;
+                    return true;
                 }
             });
         }
@@ -74,11 +74,11 @@ class Board {
     /**
      * Conducts basic moves on the board
      * @param {Selected} selected target, as defined by the class. Consists of tile and piece on the tile.
-     * @param {JSON} info Basically class with details about current target. Newer thing
+     * @param {Info} info Basically class with details about current target. Newer thing
      */
     async move (selected, info) {
         if (!selected.piece) return;
-        Recorder.store(selected, info);
+        Recorder.store(selected, info, this);
         special_moves(this, selected, info);
         info.tile.remove_piece();
         info.tile.place_piece(selected.piece);
@@ -182,18 +182,19 @@ class Board {
     czechMate(king) {
         if (king.occupation.moves.length) return;
 
-        let blocker = false;
+        let blocker = true;
 
-        board.pieces.forEach(p => {
-            if (p.color !== king.occupation.color) return;
+        // board.pieces.forEach(p => {
+        //     if (p.color !== king.occupation.color) return;
+        //     if (!p.moves.length) return;
 
-            p.moves.forEach(m => {
-                if (this.panic_moves(getTile(p.x, p.y), m)) {
-                    blocker = true;
-                }
-            });
+        //     p.moves.forEach(m => {
+        //         if (this.panic_moves(getTile(p.x, p.y), m)) {
+        //             blocker = true;
+        //         }
+        //     });
 
-        });
+        // });
 
         if (blocker) return;
         // DECLARE VICTORY!
@@ -219,12 +220,15 @@ class Board {
     panic_moves(old, move) {
         // Already filtered...
 
-        const king = this.panic[(old.occupation.color > 0) ? 'w' : 'b']
+        const king = this.panic[(MI.player > 0) ? 'w' : 'b']
+        if (!king) {
+            console.log(old, king);
+        }
         const threat = king.attacked.filter(a => {
                 return a.occupation.color !== king.occupation.color;
             });
 
-        const chain = this.panic[(old.occupation.color > 0) ? 'w_chain' : 'b_chain'];
+        const chain = this.panic[(MI.player > 0) ? 'w_chain' : 'b_chain'];
 
         // I can't really escape by moving with the chain, can I...
         if (old.occupation.acronym == 'k') {
@@ -370,12 +374,18 @@ class Tile {
 
 }
 
+/**
+ * Class that stores info about original piece before moving
+ */
 class Selected {
 
-    constructor (tile = false, piece = false) {
-
+    /**
+     * Selected constructor takes in two arguments: tile
+     * @param {Tile} tile targeted tile
+     */
+    constructor (tile = false) {
         this.tile = tile;
-        this.piece = piece;
+        this.piece = tile.occupation;
 
     }
 
@@ -975,9 +985,23 @@ function getTile(x, y) {
     return board.tiles[x_safe][y_safe];
 }
 
+class Info {
+
+    /**
+     * @param {Tile} tile Wants a tile object, basically a piece destination
+     */
+    constructor (tile) {
+        this.tile = tile;
+        this.x = tile.x;
+        this.y = tile.y;
+        this.occupation = this.tile.occupation;
+        this.color = (this.tile.occupation) ? this.occupation.color : false;
+    }
+}
+
 /**
  * @param {Event} e Pointer event associated with a click.
- * @returns {JSON} JSON with all details about the clicked thing. Includes x, y, tile, occupation and color
+ * @returns {Info} Info object contains shortcuts to all tile information
  */
 function clicked_info(e) {
 
@@ -987,21 +1011,8 @@ function clicked_info(e) {
     }
     let x = target.getAttribute("x");
     let y = target.getAttribute("y");
-    let occupation = getTile(x, y).occupation;
-    let occupation_color = _ => {
-        if (!occupation) return false;
-        return occupation.color;
-    }
 
-    return {
-
-        x: x,
-        y: y,
-        tile: getTile(x, y),
-        occupation: occupation,
-        color : occupation_color()
-
-    }
+    return new Info(getTile(x, y));
 
 }
 
@@ -1031,6 +1042,12 @@ function special_promotion(board, info) {
             return;
         }
 
+        if (piece.color < 0) {
+            _promote_event(piece, 'q', true);
+            resolve();
+            return;
+        }
+
         MI.masterblock = true;
 
         const prom = document.querySelector("[js-prom]");
@@ -1056,11 +1073,15 @@ function special_promotion(board, info) {
 
         // Working section...
 
-        prom.addEventListener("pointerdown", e => {
-            const target = e.target;
-            if (!target.getAttribute('piece')) return;
-            const piece_to_change = target.getAttribute('piece');
-
+        /**
+         * 
+         * @param {Piece} piece Original pawn that arrived
+         * @param {String} piece_to_change A string code for the new piece
+         * @param {Bool} Al Is it Al?
+         * @returns 
+         */
+        function _promote_event(piece, piece_to_change, Al = false) {
+            
             const p_tile = getTile(piece.x, piece.y);
 
             // const new_piece = new Queen(piece.x, piece.y, piece.color);
@@ -1089,6 +1110,15 @@ function special_promotion(board, info) {
             p_tile.place_piece(new_piece);
             board.pieces.push(new_piece);
 
+        }
+
+        prom.addEventListener("pointerdown", e => {
+            const target = e.target;
+            if (!target.getAttribute('piece')) return;
+            const piece_to_change = target.getAttribute('piece');
+
+            _promote_event(piece, piece_to_change);
+
             for (const c of prom_children) {
                 c.removeChild(c.children[0])
             }
@@ -1108,7 +1138,7 @@ function special_promotion(board, info) {
 /**
  * @param {Board} board Informace o hracím poli
  * @param {Selected} selected Objekt s informacemi o vybraném políčku
- * @param {Info} info JSON Objekt s informacemi o cílovém políčku.
+ * @param {Info} info Objekt s informacemi o cílovém políčku.
  */
 function special_moves(board, selected, info) {
     // Detekce prvního pohybu, rošády, en-passant možnost,...
@@ -1146,17 +1176,71 @@ function attacked_by_enemy (tile, piece) {
 class Store {
     constructor() {
         this.moves = [];
+        this.boards = [];
         this.deuce_available = false;
     }
-    store(selected, info) {
+    store(selected, info, board) {
         this.moves.push({
             piece: selected.piece,
             color: selected.piece.color,
             from: selected.tile,
             to: info.tile
         });
+        this.boards.push(board);
 
         this.deuce_by_repetition();
+
+    }
+    /**
+     * Console-side testing function that produces a fen string from current situation. 
+     * @param {int} move Move from which report should be generated. First move has value 1! Count from the end > negatives
+     * @returns {string} Fen string with information
+     */
+    generate_report(move) {
+        if (move < 0) {
+            move = this.boards.length + 1 + move;
+        }
+        move--;
+
+        let res = '';
+        let counter = 0;
+        const append = (piece) => {
+
+            if (!piece) {
+                counter ++;
+
+                if (counter > 7) {
+                    res += counter;
+                    counter = 0;
+                }
+
+                return;
+            }
+            if (counter) {
+                res += counter;
+            }
+            counter = 0;
+
+            if (piece.color > 0) {
+                res += piece.acronym.toLowerCase();
+                return;
+            }
+                res += piece.acronym.toUpperCase();
+        }
+
+        for (let i = 0; i < 8; i++) {
+            this.boards[move].tiles.forEach(c => {
+                append(c[i].occupation);
+            });
+            if (counter) {
+                res += counter;
+                counter = 0;
+            }
+            if (i == 7) break;
+            res += '/';
+        }
+
+        return res;
 
     }
 
@@ -1169,7 +1253,6 @@ class Store {
             if (!this.moves[i]) return;
             check.push(this.moves[i].to);
         }
-        console.log(check);
         if (check[0] == check[2] && check[1] == check[3] && check[4] == check[6]) {
             if (this.deuce_available) {
                 board.d_b_r();
@@ -1198,6 +1281,11 @@ class Mover {
 
         this.check_for_deuce();
         this.init_moves();
+
+        if (this.player > 0) return;
+
+        new Al_move();
+
     }
 
     check_for_deuce() {
@@ -1237,13 +1325,60 @@ class Mover {
     }
 }
 
+class Al_move {
+
+    constructor() {
+
+        this.my_pieces = [];
+        this.update_pieces();
+        this.random_move();
+
+    }
+
+    update_pieces() {
+        this.my_pieces = [];
+        board.pieces.forEach(p => {
+            if (p.color > 0) return;
+            this.my_pieces.push(p);
+        })
+    }
+
+    random_move() {
+
+        const pick_piece = () => {
+
+            const piece = this.my_pieces[Math.floor(Math.random() * this.my_pieces.length)];
+            if (piece.moves.length) return piece;
+            return pick_piece();
+
+        }
+
+        const piece = pick_piece();
+
+        const move = piece.moves[Math.floor(Math.random() * piece.moves.length)];
+
+        const origin = new Selected(getTile(piece.x, piece.y));
+        const target = new Info(move);
+
+        if (board.core(origin, target) === false) {
+            this.random_move();
+        }
+        if (board.core(origin, target === undefined)) return;
+
+    }
+
+}
+
+
 const Recorder = new Store();
 
 const board = new Board();
 // DO NOT TOUCH!!!!!
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
-board.start("4k3/8/8/p7/8/8/8/3K4");
+
+// 
+board.start('rnbqkbnr/ppp2ppp/8/8/P5PP/3p4/1PPPpP2/RNBQKB1R');
 
 const MI = new Mover();
 MI.init_moves();
