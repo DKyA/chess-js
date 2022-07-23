@@ -104,16 +104,17 @@ class Board {
             // Result will be an array of things in between.
 
             const res = [];
+            let f = -1;
 
-            for (let f = 0; f < king.attacked.length; f++) {
-                const attacker = king.attacked[f].occupation;
+            for (let c = 0; c < king.attacked.length; c++) {
+                const attacker = king.attacked[c].occupation;
                 if (attacker.color == king.occupation.color) continue;
 
+                f++;
                 res.push([]);
+                console.log(res, f);
                 res[f].push(getTile(king.x, king.y));
                 // If I am on a column, I will take everything between these 2 pieces and push it in.
-
-                let counter = 0;
 
                 if (king.x == attacker.x && king.y != attacker.y && (attacker.acronym == 'q' || attacker.acronym == 'r')) {
                     for (let i = king.y; i >= 0 && i < 8;) {
@@ -169,6 +170,7 @@ class Board {
 
                     }
                 }
+
             }
 
             return res;
@@ -1367,6 +1369,9 @@ class Al_move {
 
     random_move() {
 
+        // Narrow down selection, optimize. TMR / Whenever.
+        // Continue testing and debugging with random moves.
+
         const pick_piece = () => {
 
             const piece = this.my_pieces[Math.floor(Math.random() * this.my_pieces.length)];
@@ -1401,7 +1406,7 @@ const board = new Board();
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
 
-board.start('rnb1k1nr/ppp2ppp/8/8/P2p1P2/3P4/1PPN1qPP/R1BK1BNR');
+board.start('rnbqkbnr/ppp2ppp/8/3pp3/Q7/2P5/PP1PPPPP/RNB1KBNR');
 
 const MI = new Mover();
 MI.init_moves();
