@@ -112,8 +112,6 @@ class Board {
 
                 f++;
                 res.push([]);
-                console.log(res, f);
-                res[f].push(getTile(king.x, king.y));
                 // If I am on a column, I will take everything between these 2 pieces and push it in.
 
                 if (king.x == attacker.x && king.y != attacker.y && (attacker.acronym == 'q' || attacker.acronym == 'r')) {
@@ -136,7 +134,7 @@ class Board {
                         if (i != king.x) {
                             res[f].push(getTile(i, king.y));
                         }
-                        if (i == attacker.y) break;
+                        if (i == attacker.x) break;
                         if (king.x > attacker.x) {
                             i--;
                             continue;
@@ -147,7 +145,6 @@ class Board {
 
                 if (king.y != attacker.y && king.x != attacker.x && (attacker.acronym == 'q' || attacker.acronym == 'b' || attacker.acronym == 'p')) {
 
-                    let counter = 0;
                     let i = attacker.x;
                     let j = attacker.y;
                     while (i != king.x || j != king.y) {
@@ -168,11 +165,19 @@ class Board {
                             j--;
                         }
 
+                        if (i == king.x && j == king.y) break;
+
                     }
+
+                }
+
+                if (attacker.acronym == 'n' || attacker.acronym == 'p') {
+                    res[f].push(getTile(attacker.x, attacker.y));
                 }
 
             }
 
+            res[f].push(king);
             return res;
 
         })(king);
@@ -184,6 +189,7 @@ class Board {
     }
 
     czechMate(king) {
+        return;
         if (king.occupation.moves.length) return;
 
         let blocker = true;
@@ -222,50 +228,122 @@ class Board {
      * @returns {bool} Returns if the move can be considered as valid panic move.
      */
     panic_moves(old, move) {
-        // Already filtered...
 
-        const king = this.panic[(MI.player > 0) ? 'w' : 'b']
-        if (!king) {
-            console.log(old, king);
-        }
+        const king = this.panic[(MI.player > 0) ? 'w' : 'b'];
+
         const threat = king.attacked.filter(a => {
                 return a.occupation.color !== king.occupation.color;
             });
-
         const chain = this.panic[(MI.player > 0) ? 'w_chain' : 'b_chain'];
 
-        // I can't really escape by moving with the chain, can I...
+            console.log(chain);
+
+        const threat_direction_vector = chain.map((c, i) => {
+
+            if (c.length < 2 || threat[i].occupation.acronym == 'p' || threat[i].occupation.acronym == 'n') return false;
+
+            const x = c[0].x - c[1].x;
+            const y = c[0].y - c[1].y;
+
+            const followup = getTile(c[c.length - 1].x - x, c[c.length - 1].y - y)
+
+            return followup;
+
+        });
+
+
         if (old.occupation.acronym == 'k') {
 
-            for (const t of threat) {
-                if (move == t) return true;
+            // I will deny moving directly away from the threat...
+
+            for (const in_line of threat_direction_vector) {
+
+                if (!in_line) continue;
+                if (in_line == move) return false;
             }
 
-            if (((chain) => {
+            if (!move.attacked.length) return true;
+            for (const a of move.attacked) {
+                if (a.occupation.color !== king.occupation.color) return false;
+            }
+            return true;
 
-                for (const c of chain) {
-                    let k = {
-                        x: c[0].x - c[1].x,
-                        y: c[0].y - c[1].y
-                    }
-                    if (move == getTile(c[0].x + k.x, c[0].y + k.y)) return false;
-                }
-                return true;
-
-            })(chain)) return true;
-
-            return false;
         }
 
-        if (threat.length > 1) return false;
+        if (threat.length === 1) {
+            const attacker = threat[0];
 
-        for (const pos of chain[0]) {
-            if (pos == move) {
-                return true;
+            if (move == attacker) return true;
+
+            // Since there is only 1 threat, there will naturally be only 1 chain
+            if (chain[0].length > 2) {
+
+                let res = chain[0].filter(c => {
+
+                    return c == move;
+
+                });
+
+                if (res.length > 0) return true;
+
             }
+
+        }
+
+        else {
+            console.log("Whaat");
+            if (old.occupation.acronym !== 'k') return false;
         }
 
         return false;
+
+        // const king = this.panic[(MI.player > 0) ? 'w' : 'b']
+        // if (!king) {
+        //     console.log(old, king);
+        // }
+
+        // const threat = king.attacked.filter(a => {
+        //         return a.occupation.color !== king.occupation.color;
+        //     });
+
+        // if (threat.length < 2 && move == threat[0]) return true;
+
+        // const chain = this.panic[(MI.player > 0) ? 'w_chain' : 'b_chain'];
+
+        // // I can't really escape by moving with the chain, can I...
+        // if (old.occupation.acronym == 'k') {
+
+        //     for (const t of threat) {
+        //         if (move == t) return true;
+        //     }
+
+        //     if (threat.length > 1) return false;
+
+        //     for (const pos of chain[0]) {
+        //         if (pos == move) {
+        //             return true;
+        //         }
+        //     }
+
+        //     if (((chain) => {
+
+        //         for (const c of chain) {
+
+        //             let k = {
+        //                 x: c[0].x - c[1].x,
+        //                 y: c[0].y - c[1].y
+        //             }
+        //             if (move == getTile(c[0].x + k.x, c[0].y + k.y)) return false;
+        //         }
+        //         return true;
+
+        //     })(chain)) return true;
+
+        //     return false;
+        // }
+
+        // return false;            
+
     }
 
     /**
@@ -1375,6 +1453,7 @@ class Al_move {
         const pick_piece = () => {
 
             const piece = this.my_pieces[Math.floor(Math.random() * this.my_pieces.length)];
+
             if (piece.moves.length) return piece;
             return pick_piece();
 
@@ -1406,7 +1485,7 @@ const board = new Board();
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
 
-board.start('rnbqkbnr/ppp2ppp/8/3pp3/Q7/2P5/PP1PPPPP/RNB1KBNR');
+board.start('8/4k3/4Q3/8/8/8/8/8');
 
 const MI = new Mover();
 MI.init_moves();
