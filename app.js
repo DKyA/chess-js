@@ -192,22 +192,19 @@ class Board {
 
         if (king.occupation.moves.length) return;
 
-        let blocker = true;
-
-        board.pieces.forEach(p => {
-            if (p.color !== king.occupation.color) return;
-            if (!p.moves.length) return;
-
-            p.moves.forEach(m => {
-                if (this.panic_moves(getTile(p.x, p.y), m)) {
-                    blocker = true;
+        const a_enemy = king.attacked.filter(a => {
+            return a.occupation.color === king.occupation.color;
+        })
+        if (a_enemy.length < 2) {
+            for (const p of board.pieces) {
+                if (p.color !== king.occupation.color) continue;
+                const p_b = getTile(p.x, p.y);
+                for (const m of p_b.occupation.moves) {
+                    console.log(p_b, m);
+                    if (this.panic_moves(p_b, m, king)) return;
                 }
-            });
-
-        });
-
-        if (blocker) return;
-        // DECLARE VICTORY!
+            }
+        }
 
         MI.masterblock = true;
 
@@ -227,14 +224,12 @@ class Board {
      * @param {Tile} move New tile where I want to go. Typically info.tile prop
      * @returns {bool} Returns if the move can be considered as valid panic move.
      */
-    panic_moves(old, move) {
-
-        const king = this.panic[(MI.player > 0) ? 'w' : 'b'];
+    panic_moves(old, move, king = this.panic[(MI.player > 0) ? 'w' : 'b']) {
 
         const threat = king.attacked.filter(a => {
                 return a.occupation.color !== king.occupation.color;
             });
-        const chain = this.panic[(MI.player > 0) ? 'w_chain' : 'b_chain'];
+        const chain = this.panic[(king.occupation.color > 0) ? 'w_chain' : 'b_chain'];
 
         const threat_direction_vector = chain.map((c, i) => {
 
@@ -1418,7 +1413,9 @@ class Al_move {
         if (output === false) {
             this.random_move();
         }
-        if (output === undefined) return;
+        if (output === undefined) {
+            console.log(origin, target);
+        }
 
     }
 
@@ -1432,7 +1429,7 @@ const board = new Board();
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
 
-board.start('rnbqkbnr/ppp2ppp/8/3p4/1P5P/P7/2PPpPPR/RNBQKB2');
+board.start('r1b1k2r/pppp1ppp/8/2Pn4/3n2P1/P1K1b1P1/4q3/RN5R');
 
 const MI = new Mover();
 MI.init_moves();
