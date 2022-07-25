@@ -187,12 +187,15 @@ class Board {
     czechMate(king) {
 
         if (this.panic[(king.occupation.color > 0) ? 'w' : 'b'] !== king) return;
-        if (king.occupation.moves.length) return;
+        for (const m of king.occupation.moves) {
+            if (this.panic_moves(king, m, king)) return;
+        }
         // This is the thing that screwed me over...
 
         const a_enemy = king.attacked.filter(a => {
-            return a.occupation.color === king.occupation.color;
-        })
+            return a.occupation.color !== king.occupation.color;
+        });
+
         if (a_enemy.length < 2) {
             for (const p of board.pieces) {
                 if (p.color !== king.occupation.color) continue;
@@ -235,9 +238,10 @@ class Board {
             const x = c[0].x - c[1].x;
             const y = c[0].y - c[1].y;
 
-            const followup = getTile(c[c.length - 1].x - x, c[c.length - 1].y - y)
+            const followup = getTile(c[c.length - 1].x - x, c[c.length - 1].y - y);
+            const predecessor = getTile(c[c.length - 1].x + x, c[c.length - 1].y + y);
 
-            return followup;
+            return [predecessor, followup];
 
         });
 
@@ -247,8 +251,10 @@ class Board {
 
             for (const in_line of threat_direction_vector) {
 
-                if (!in_line) continue;
-                if (in_line == move) return false;
+                if (!in_line[0] || !in_line[1]) continue;
+                if (in_line[0] == move) return false;
+                if (in_line[1] == move) return false;
+
             }
 
             if (!move.attacked.length) return true;
@@ -905,7 +911,7 @@ class King extends Piece {
         }
 
         // Castles:
-        if (this.first_move) {
+        if (this.first_move && this.x == 4 && this.y == ((this.color > 0) ? 0 : 7)) {
             // Start thinking...
             for (let i = this.x + 1; i < 8; i++) {
                 if (!res_castle(i)) break;
@@ -1406,7 +1412,7 @@ class Al_move {
         const origin = new Selected(getTile(piece.x, piece.y));
         const target = new Info(move);
 
-        console.log(origin, target);
+        // console.log(origin, target);
         const output = board.core(origin, target, true);
 
         if (output === false) {
@@ -1427,7 +1433,7 @@ const board = new Board();
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
 
-board.start(norm);
+board.start('rnb1kbnr/ppp2ppp/8/8/1P6/N6P/PB1PBPP1/Rq3K1R');
 
 const MI = new Mover();
 MI.init_moves();
