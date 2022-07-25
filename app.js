@@ -1317,7 +1317,8 @@ class Mover {
 
         this.check_for_deuce();
         this.init_moves();
-        this.deuce_no_moves();
+        this.deuce_no_moves(1);
+        this.deuce_no_moves(-1);
 
         if (this.player > 0) return;
 
@@ -1353,9 +1354,9 @@ class Mover {
 
     }
 
-    deuce_no_moves() {
+    deuce_no_moves(color) {
         const pieces = board.pieces.filter(p => {
-            return p.color === this.player;
+            return p.color === color;
         })
 
         for (const p of pieces) {
