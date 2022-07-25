@@ -1317,6 +1317,7 @@ class Mover {
 
         this.check_for_deuce();
         this.init_moves();
+        this.deuce_no_moves();
 
         if (this.player > 0) return;
 
@@ -1348,6 +1349,26 @@ class Mover {
 
         if (kings.length !== 2) return;
         window.alert("Remíza na materiál")
+        this.masterblock = true;
+
+    }
+
+    deuce_no_moves() {
+        const pieces = board.pieces.filter(p => {
+            return p.color === this.player;
+        })
+
+        for (const p of pieces) {
+            if (!board.panic[(this.player > 0) ? 'w' : 'b']) {
+                if (p.moves.length) return;
+                continue;
+            }
+            for (const m of p.moves) {
+                if (board.panic_moves(getTile(p.x, p.y), m)) return;
+            }
+        }
+
+        window.alert("Remíza na nemožnost pohybu")
         this.masterblock = true;
 
     }
