@@ -182,15 +182,13 @@ class Board {
 
         })(king);
 
-        // Look for mate
-
-        this.czechMate(king);
-
     }
 
     czechMate(king) {
 
+        if (this.panic[(king.occupation.color > 0) ? 'w' : 'b'] !== king) return;
         if (king.occupation.moves.length) return;
+        // This is the thing that screwed me over...
 
         const a_enemy = king.attacked.filter(a => {
             return a.occupation.color === king.occupation.color;
@@ -200,7 +198,6 @@ class Board {
                 if (p.color !== king.occupation.color) continue;
                 const p_b = getTile(p.x, p.y);
                 for (const m of p_b.occupation.moves) {
-                    console.log(p_b, m);
                     if (this.panic_moves(p_b, m, king)) return;
                 }
             }
@@ -1363,6 +1360,7 @@ class Mover {
         })
         kings.forEach(k => {
             k.f_moves();
+            board.czechMate(getTile(k.x, k.y));
         });
     }
 }
@@ -1408,14 +1406,13 @@ class Al_move {
         const origin = new Selected(getTile(piece.x, piece.y));
         const target = new Info(move);
 
+        console.log(origin, target);
         const output = board.core(origin, target, true);
 
         if (output === false) {
             this.random_move();
         }
-        if (output === undefined) {
-            console.log(origin, target);
-        }
+        if (output === undefined) return
 
     }
 
@@ -1426,10 +1423,11 @@ const Recorder = new Store();
 
 const board = new Board();
 // DO NOT TOUCH!!!!!
+
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
 
-board.start('r1b1k2r/pppp1ppp/8/2Pn4/3n2P1/P1K1b1P1/4q3/RN5R');
+board.start('1r1qkb1r/pp3p1p/2pp1n2/1B6/P3p1Pp/n3P3/3P1P1P/1NBK2R1');
 
 const MI = new Mover();
 MI.init_moves();
