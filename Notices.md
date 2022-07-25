@@ -6,4 +6,5 @@
     - Test proms, have I broken it?
 
 # Known Bugs:
-    - None as of now
+    - Is all pieces blocked a draw at the moment?
+    - 

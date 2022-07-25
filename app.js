@@ -249,18 +249,22 @@ class Board {
         if (old.occupation.acronym == 'k') {
             // I will deny moving directly away from the threat...
 
-            for (const in_line of threat_direction_vector) {
-
-                if (!in_line[0] || !in_line[1]) continue;
-                if (in_line[0] == move) return false;
-                if (in_line[1] == move) return false;
-
-            }
-
             if (!move.attacked.length) return true;
             for (const a of move.attacked) {
                 if (a.occupation.color !== king.occupation.color) return false;
             }
+
+            for (const in_line of threat_direction_vector) {
+
+                if (!in_line[0] || !in_line[1]) continue;
+
+                for (const t of threat) {
+                    if (in_line[0] == move && in_line[0] !== t) return false;
+                    if (in_line[1] == move && in_line[1] !== t) return false;
+                }
+
+            }
+
             return true;
 
         }
