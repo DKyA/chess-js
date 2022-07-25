@@ -1376,19 +1376,19 @@ class Al_move {
     constructor() {
 
         this.my_pieces = [];
-        this.update_pieces();
-        this.random_move();
 
         board.Al_control = -1;
+
+        this.update_pieces();
+        this.spent = [];
+        this.random_move();
 
     }
 
     update_pieces() {
-        this.my_pieces = [];
-        board.pieces.forEach(p => {
-            if (p.color > 0) return;
-            this.my_pieces.push(p);
-        })
+        this.my_pieces = board.pieces.filter(p => {
+            return p.x && p.y && p.color === board.Al_control;
+        });
     }
 
     random_move() {
@@ -1410,9 +1410,13 @@ class Al_move {
         const move = piece.moves[Math.floor(Math.random() * piece.moves.length)];
 
         const origin = new Selected(getTile(piece.x, piece.y));
+        if (this.spent.indexOf(origin) > 0) {
+            this.random_move();
+            return;
+        }
+        this.spent.push(origin);
         const target = new Info(move);
 
-        // console.log(origin, target);
         const output = board.core(origin, target, true);
 
         if (output === false) {
@@ -1433,7 +1437,7 @@ const board = new Board();
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
 
-board.start('rnb1kbnr/ppp2ppp/8/8/1P6/N6P/PB1PBPP1/Rq3K1R');
+board.start(norm);
 
 const MI = new Mover();
 MI.init_moves();
