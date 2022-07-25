@@ -2,9 +2,10 @@ const board_src = document.querySelector("[js-board]");
 
 class Board {
 
-    constructor() {
+    constructor(test = false) {
         // Initialising tiles:
 
+        this.test = test;
         this.tiles = [];
         this.panic = {
             w: false,
@@ -18,7 +19,7 @@ class Board {
                 if (this.tiles[x] == undefined) {
                     this.tiles[x] = [];
                 }
-                this.tiles[x].unshift(new Tile(x, y));
+                this.tiles[x].unshift(new Tile(x, y, this.test));
             }
         }
 
@@ -26,11 +27,14 @@ class Board {
 
     }
 
-    start(fen) {
-        this.pieces = fen_translator(fen);
+    start(fen, test = false) {
+        this.pieces = fen_translator(fen, test);
 
         let selected = new Selected()
         // CORE FUNCTION!!!
+
+        if (test) return; // This is VERY temporary
+
         board_src.addEventListener("pointerdown", (e) => {
 
             let info = clicked_info(e);
@@ -341,16 +345,33 @@ class Board {
         window.alert("Deuce by repetition");
     }
 
+    /**
+     * Function which takes the current game situation and provides evaluation for given color
+     * @param {int} color Color of the desired eval
+     * @returns {int} Evaluation of the position
+     */
+    eval(color) {
+
+        console.log(color);
+
+        return 1
+
+    }
+
 }
 
 class Tile {
 
-    constructor (x, y) {
+    constructor (x, y, test) {
 
         this.x = x;
         this.y = y;
         this.occupation = false;
         // COLOR?
+        this.test = test;
+
+        if (test) return;
+
         this.classes = (_ => {
             if ((x + !(y % 2)) % 2) {
                 return ['c-board__tile', 'c-board__tile--black'];
@@ -373,6 +394,7 @@ class Tile {
 
     place_piece(piece) {
         this.occupation = piece;
+        if (this.test || !piece.element) return;
         this.element.appendChild(piece.element);
     }
 
@@ -382,21 +404,27 @@ class Tile {
             this.occupation.x = false;
             this.occupation.y = false;
         }
+
+        this.occupation = false;
+
+        if (this.test) return;
+
         if (this.element.children.length) {
             this.element.removeChild(this.element.firstChild);
         }
-        this.occupation = false;
     }
 
     attack (t) {
         if (!t.occupation || !t.occupation.acronym) return;
         this.attacked.push(t);
+        if (this.test) return;
         let code = (t.occupation.color > 0) ? 'w' : 'b';
         this.element.classList.add("c-board__tile--attacked_" + code);
     }
 
     retreat() {
         this.attacked = [];
+        if (this.test) return;
         this.element.classList.remove("c-board__tile--attacked_w");
         this.element.classList.remove("c-board__tile--attacked_b")
     }
@@ -443,7 +471,7 @@ class Selected {
  * Contains basic piece information
  */
 class Piece {
-    constructor (x, y, color) {
+    constructor (x, y, color, test) {
         this.x = x;
         this.y = y;
         this.color = color;
@@ -451,6 +479,7 @@ class Piece {
         this.moves = [];
         this.pinned = false;
         this.forbid_movement = false;
+        this.test = test;
     }
 
     place() {
@@ -458,6 +487,7 @@ class Piece {
     }
 
     html(acronym, color) {
+        if (this.test) return;
         this.src = 'pieces/Chess_' + acronym + ((color > 0) ? 'l' : 'd') + 't45.svg';
         this.element = document.createElement('img');
         this.element.src = this.src;
@@ -465,6 +495,7 @@ class Piece {
     }
 
     activate () {
+        if (this.test) return;
         this.element.classList.add("c-board__piece--active");
         this.moves.forEach(m => {
             // Implement also panic function...
@@ -483,6 +514,7 @@ class Piece {
     }
 
     deactivate () {
+        if (this.test) return;
         this.element.classList.remove("c-board__piece--active");
         get_all_tiles().forEach(t => {
             t.element.classList.remove("c-board__tile--take");
@@ -562,8 +594,8 @@ class Piece {
 }
 
 class Pawn extends Piece {
-    constructor (x, y, color) {
-        super (x, y, color);
+    constructor (x, y, color, test) {
+        super (x, y, color, test);
         this.acronym = 'p';
         this.type = 'Pawn';
         this.value = 1;
@@ -611,8 +643,8 @@ class Pawn extends Piece {
 }
 
 class Rook extends Piece {
-    constructor (x, y, color) {
-        super(x, y, color);
+    constructor (x, y, color, test) {
+        super(x, y, color, test);
         this.acronym = 'r';
         this.type = 'Rook';
         this.value = 5;
@@ -663,8 +695,8 @@ class Rook extends Piece {
 }
 
 class Knight extends Piece {
-    constructor (x, y, color) {
-        super(x, y, color);
+    constructor (x, y, color, test) {
+        super(x, y, color, test);
         this.acronym = 'n';
         this.type = 'Knight';
         this.value = 3;
@@ -692,8 +724,8 @@ class Knight extends Piece {
 }
 
 class Bishop extends Piece {
-    constructor (x, y, color) {
-        super(x, y, color);
+    constructor (x, y, color, test) {
+        super(x, y, color, test);
         this.acronym = 'b';
         this.type = 'Bishop';
         this.value = 3;
@@ -746,8 +778,8 @@ class Bishop extends Piece {
 }
 
 class Queen extends Piece {
-    constructor (x, y, color) {
-        super(x, y, color);
+    constructor (x, y, color, test) {
+        super(x, y, color, test);
         this.acronym = 'q';
         this.type = 'Queen';
         this.value = 9;
@@ -847,8 +879,8 @@ class Queen extends Piece {
  */
 class King extends Piece {
     // A strong contender for rewriting into something more legible...
-    constructor (x, y, color) {
-        super(x, y, color);
+    constructor (x, y, color, test) {
+        super(x, y, color, test);
         this.acronym = 'k';
         this.type = 'King';
         this.value = 100;
@@ -936,7 +968,7 @@ class King extends Piece {
  * @param fen - string to translate
  * @param place - decides whether should I place the piece or return everything in an array
  */
-function fen_translator (fen, place = true) {
+function fen_translator (fen, test = false, place = true) {
     const res = [];
 
     let y = 0, x = 0;
@@ -958,32 +990,32 @@ function fen_translator (fen, place = true) {
 
         switch (ch.toLowerCase()) {
             case ("p"): {
-                res.push(new Pawn(x, y, color(ch)));
+                res.push(new Pawn(x, y, color(ch), test));
                 break;
             }
             case ("r"): {
-                res.push(new Rook(x, y, color(ch)));
+                res.push(new Rook(x, y, color(ch), test));
                 break;
             }
             case ("b"): {
-                res.push(new Bishop(x, y, color(ch)));
+                res.push(new Bishop(x, y, color(ch), test));
                 break;
             }
             case ("n"): {
-                res.push(new Knight(x, y, color(ch)));
+                res.push(new Knight(x, y, color(ch), test));
                 break;
             }
             case ("q"): {
-                res.push(new Queen(x, y, color(ch)));
+                res.push(new Queen(x, y, color(ch), test));
                 break;
             }
             case ("k"): {
-                res.push(new King(x, y, color(ch)));
+                res.push(new King(x, y, color(ch), test));
                 break;
             }
         }
         if (place) {
-            res[res.length - 1].place();
+            res[res.length - 1].place(test);
         }
 
         x++;
@@ -1408,6 +1440,10 @@ class Al_move {
         this.update_pieces();
         this.spent = [];
         this.random_move();
+
+        const x = new Board(true);
+        x.start(Recorder.generate_report(-1), true);
+        console.log(x.eval(MI.player));
 
     }
 

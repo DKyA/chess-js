@@ -3,8 +3,4 @@
     - Jsem si dost jistý, že spoustu problémů půjde vyřešit jenom tím, že se prohází pořadí u akcí krále.
 
 # TODO:
-    - Test proms, have I broken it?
-
-# Known Bugs:
-    - Is all pieces blocked a draw at the moment?
-    - 
+    - Remove BOARD variable from everywhere, pass it only as arguments
