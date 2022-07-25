@@ -1427,7 +1427,7 @@ const board = new Board();
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
 
-board.start('1r1qkb1r/pp3p1p/2pp1n2/1B6/P3p1Pp/n3P3/3P1P1P/1NBK2R1');
+board.start(norm);
 
 const MI = new Mover();
 MI.init_moves();
