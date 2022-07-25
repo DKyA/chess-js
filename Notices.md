@@ -6,4 +6,5 @@
     - Test proms, have I broken it?
 
 # Known Bugs:
-    - Issue with avert check by take
+    - Suspended mate mechanism for now. I think I can bring it back on
+    - Rook and Queen moveset issues

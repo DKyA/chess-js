@@ -189,22 +189,22 @@ class Board {
     }
 
     czechMate(king) {
-        return;
+
         if (king.occupation.moves.length) return;
 
         let blocker = true;
 
-        // board.pieces.forEach(p => {
-        //     if (p.color !== king.occupation.color) return;
-        //     if (!p.moves.length) return;
+        board.pieces.forEach(p => {
+            if (p.color !== king.occupation.color) return;
+            if (!p.moves.length) return;
 
-        //     p.moves.forEach(m => {
-        //         if (this.panic_moves(getTile(p.x, p.y), m)) {
-        //             blocker = true;
-        //         }
-        //     });
+            p.moves.forEach(m => {
+                if (this.panic_moves(getTile(p.x, p.y), m)) {
+                    blocker = true;
+                }
+            });
 
-        // });
+        });
 
         if (blocker) return;
         // DECLARE VICTORY!
@@ -236,8 +236,6 @@ class Board {
             });
         const chain = this.panic[(MI.player > 0) ? 'w_chain' : 'b_chain'];
 
-            console.log(chain);
-
         const threat_direction_vector = chain.map((c, i) => {
 
             if (c.length < 2 || threat[i].occupation.acronym == 'p' || threat[i].occupation.acronym == 'n') return false;
@@ -253,7 +251,6 @@ class Board {
 
 
         if (old.occupation.acronym == 'k') {
-
             // I will deny moving directly away from the threat...
 
             for (const in_line of threat_direction_vector) {
@@ -290,59 +287,7 @@ class Board {
 
         }
 
-        else {
-            console.log("Whaat");
-            if (old.occupation.acronym !== 'k') return false;
-        }
-
         return false;
-
-        // const king = this.panic[(MI.player > 0) ? 'w' : 'b']
-        // if (!king) {
-        //     console.log(old, king);
-        // }
-
-        // const threat = king.attacked.filter(a => {
-        //         return a.occupation.color !== king.occupation.color;
-        //     });
-
-        // if (threat.length < 2 && move == threat[0]) return true;
-
-        // const chain = this.panic[(MI.player > 0) ? 'w_chain' : 'b_chain'];
-
-        // // I can't really escape by moving with the chain, can I...
-        // if (old.occupation.acronym == 'k') {
-
-        //     for (const t of threat) {
-        //         if (move == t) return true;
-        //     }
-
-        //     if (threat.length > 1) return false;
-
-        //     for (const pos of chain[0]) {
-        //         if (pos == move) {
-        //             return true;
-        //         }
-        //     }
-
-        //     if (((chain) => {
-
-        //         for (const c of chain) {
-
-        //             let k = {
-        //                 x: c[0].x - c[1].x,
-        //                 y: c[0].y - c[1].y
-        //             }
-        //             if (move == getTile(c[0].x + k.x, c[0].y + k.y)) return false;
-        //         }
-        //         return true;
-
-        //     })(chain)) return true;
-
-        //     return false;
-        // }
-
-        // return false;            
 
     }
 
@@ -558,6 +503,7 @@ class Piece {
     }
 
     validate_moves(beamed, x, y) {
+        // How to set beamed here? 
 
         const t = getTile(x, y);
         if (!t) return false;
@@ -568,7 +514,9 @@ class Piece {
                 }
                 return true;
             }
-            t.attack(getTile(this.x, this.y));
+            if (!beamed.length) {
+                t.attack(getTile(this.x, this.y))
+            }
             return true;
         }
         if (!beamed.length) {
@@ -577,7 +525,6 @@ class Piece {
         return (beamed => {
             if (!beamed.length) return false;
             return true;
-
         })(beamed);
     }
 
@@ -630,7 +577,7 @@ class Pawn extends Piece {
             this.moves.push(tile1);
 
             let tile2 = getTile(this.x, this.y + 2 * this.color);
-            if (tile2 && !tile2.occupation && this.first_move) {
+            if (tile2 && !tile2.occupation && this.first_move && this.y == ((this.color > 0) ? 1 : 6)) {
                 this.moves.push(tile2);
             }
         }
@@ -1485,7 +1432,7 @@ const board = new Board();
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 // TOUCH THIS!!!
 
-board.start('8/4k3/4Q3/8/8/8/8/8');
+board.start('rnbqkbnr/ppp2ppp/8/3p4/1P5P/P7/2PPpPPR/RNBQKB2');
 
 const MI = new Mover();
 MI.init_moves();
