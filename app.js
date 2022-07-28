@@ -13,6 +13,7 @@ class Board {
             w_chain: false,
             b_chain: false
         };
+        this.UF = new Utile_functions(this);
 
         for (let y = 7; y >= 0; y--) {
             for (let x = 0; x < 8; x++) {
@@ -28,16 +29,15 @@ class Board {
     }
 
     start(fen, test = false) {
-        this.pieces = fen_translator(fen, test);
+        this.pieces = this.UF.fen_translator(fen, test);
 
         let selected = new Selected()
         // CORE FUNCTION!!!
 
         if (test) return; // This is VERY temporary
-
         board_src.addEventListener("pointerdown", (e) => {
 
-            let info = clicked_info(e);
+            let info = this.UF.clicked_info(e);
             this.core(selected, info);
 
         });
@@ -85,13 +85,13 @@ class Board {
     async move (selected, info) {
         if (!selected.piece) return;
         Recorder.store(selected, info, this);
-        special_moves(this, selected, info);
+        this.UF.special_moves(selected, info);
         info.tile.remove_piece();
         info.tile.place_piece(selected.piece);
         selected.piece.move(info.x, info.y);
         selected.tile.remove_piece();
         selected.reset();
-        await special_promotion(this, info).then(_ => {
+        await this.UF.special_promotion(info).then(_ => {
             MI.masterblock = false;
             MI.next_turn();
         });
@@ -100,12 +100,6 @@ class Board {
     panic_mode(king) {
         this.panic[(king.occupation.color > 0) ? 'w' : 'b'] = king;
         this.panic[(king.occupation.color > 0) ? 'w_chain' : 'b_chain'] = (king => {
-            // Now I am just figuring out where is the attacking piece...
-
-            // That's a no for p and n
-
-            // Now for the rest... Well I assume that they are all line pieces. So I will look around and figure out their relative positions.
-            // Result will be an array of things in between.
 
             const res = [];
             let f = -1;
@@ -121,7 +115,7 @@ class Board {
                 if (king.x == attacker.x && king.y != attacker.y && (attacker.acronym == 'q' || attacker.acronym == 'r')) {
                     for (let i = king.y; i >= 0 && i < 8;) {
                         if (i != king.y) {
-                            res[f].push(getTile(king.x, i));
+                            res[f].push(this.UF.getTile(king.x, i));
                         }
                         if (i == attacker.y) break;
                         if (king.y > attacker.y) {
@@ -136,7 +130,7 @@ class Board {
                 if (king.y == attacker.y && king.x != attacker.x && (attacker.acronym == 'q' || attacker.acronym == 'r')) {
                     for (let i = king.x; i >= 0 && i < 8;) {
                         if (i != king.x) {
-                            res[f].push(getTile(i, king.y));
+                            res[f].push(this.UF.getTile(i, king.y));
                         }
                         if (i == attacker.x) break;
                         if (king.x > attacker.x) {
@@ -153,7 +147,7 @@ class Board {
                     let j = attacker.y;
                     while (i != king.x || j != king.y) {
 
-                        res[f].push(getTile(i, j));
+                        res[f].push(this.UF.getTile(i, j));
 
                         if (king.x > attacker.x) {
                             i++;
@@ -176,7 +170,7 @@ class Board {
                 }
 
                 if (attacker.acronym == 'n' || attacker.acronym == 'p') {
-                    res[f].push(getTile(attacker.x, attacker.y));
+                    res[f].push(this.UF.getTile(attacker.x, attacker.y));
                 }
 
             }
@@ -201,9 +195,9 @@ class Board {
         });
 
         if (a_enemy.length < 2) {
-            for (const p of board.pieces) {
+            for (const p of this.pieces) {
                 if (p.color !== king.occupation.color) continue;
-                const p_b = getTile(p.x, p.y);
+                const p_b = this.UF.getTile(p.x, p.y);
                 for (const m of p_b.occupation.moves) {
                     if (this.panic_moves(p_b, m, king)) return;
                 }
@@ -242,8 +236,8 @@ class Board {
             const x = c[0].x - c[1].x;
             const y = c[0].y - c[1].y;
 
-            const followup = getTile(c[c.length - 1].x - x, c[c.length - 1].y - y);
-            const predecessor = getTile(c[c.length - 1].x + x, c[c.length - 1].y + y);
+            const followup = this.UF.getTile(c[c.length - 1].x - x, c[c.length - 1].y - y);
+            const predecessor = this.UF.getTile(c[c.length - 1].x + x, c[c.length - 1].y + y);
 
             return [predecessor, followup];
 
@@ -471,7 +465,7 @@ class Selected {
  * Contains basic piece information
  */
 class Piece {
-    constructor (x, y, color, test) {
+    constructor (x, y, color, test, board) {
         this.x = x;
         this.y = y;
         this.color = color;
@@ -480,10 +474,11 @@ class Piece {
         this.pinned = false;
         this.forbid_movement = false;
         this.test = test;
+        this.board = board;
     }
 
     place() {
-        getTile(this.x, this.y).place_piece(this);
+        this.board.UF.getTile(this.x, this.y).place_piece(this);
     }
 
     html(acronym, color) {
@@ -500,9 +495,9 @@ class Piece {
         this.moves.forEach(m => {
             // Implement also panic function...
 
-            if (board.panic[(this.color > 0) ? 'w' : 'b']) {
+            if (this.board.panic[(this.color > 0) ? 'w' : 'b']) {
                 // Queries for OK moves
-                if (!board.panic_moves(getTile(this.x, this.y), m)) return;
+                if (!this.board.panic_moves(this.board.UF.getTile(this.x, this.y), m)) return;
             }
 
             if (m.occupation) {
@@ -516,7 +511,7 @@ class Piece {
     deactivate () {
         if (this.test) return;
         this.element.classList.remove("c-board__piece--active");
-        get_all_tiles().forEach(t => {
+        this.board.UF.get_all_tiles().forEach(t => {
             t.element.classList.remove("c-board__tile--take");
             t.element.classList.remove("c-board__tile--available")
         })
@@ -531,7 +526,7 @@ class Piece {
 
     a_push (tile) {
         if (this.forbid_movement) return;
-        tile.attack(getTile(this.x, this.y));
+        tile.attack(this.board.UF.getTile(this.x, this.y));
         if (tile.occupation.color == this.color) return;
         this.moves.push(tile);
     }
@@ -539,7 +534,7 @@ class Piece {
     validate_moves(beamed, x, y) {
         // How to set beamed here? 
 
-        const t = getTile(x, y);
+        const t = this.board.UF.getTile(x, y);
         if (!t) return false;
         if (t.occupation) {
             if (t.occupation.color != this.color) {
@@ -549,7 +544,7 @@ class Piece {
                 return true;
             }
             if (!beamed.length) {
-                t.attack(getTile(this.x, this.y))
+                t.attack(this.board.UF.getTile(this.x, this.y))
             }
             return true;
         }
@@ -594,8 +589,8 @@ class Piece {
 }
 
 class Pawn extends Piece {
-    constructor (x, y, color, test) {
-        super (x, y, color, test);
+    constructor (x, y, color, test, board) {
+        super (x, y, color, test, board);
         this.acronym = 'p';
         this.type = 'Pawn';
         this.value = 1;
@@ -606,11 +601,11 @@ class Pawn extends Piece {
 
     f_moves() {
         // Regular moves
-        let tile1 = getTile(this.x, this.y + this.color);
+        let tile1 = this.board.UF.getTile(this.x, this.y + this.color);
         if (tile1 && !tile1.occupation) {
             this.moves.push(tile1);
 
-            let tile2 = getTile(this.x, this.y + 2 * this.color);
+            let tile2 = this.board.UF.getTile(this.x, this.y + 2 * this.color);
             if (tile2 && !tile2.occupation && this.first_move && this.y == ((this.color > 0) ? 1 : 6)) {
                 this.moves.push(tile2);
             }
@@ -618,9 +613,9 @@ class Pawn extends Piece {
 
         const koeficient = [-1, 1];
         koeficient.forEach(k => {
-            const focus = getTile(this.x + k, this.y + this.color);
+            const focus = this.board.UF.getTile(this.x + k, this.y + this.color);
             if (focus) {
-                focus.attack(getTile(this.x, this.y));
+                focus.attack(this.board.UF.getTile(this.x, this.y));
                 if (focus.occupation && focus.occupation.color != this.color) {
                     this.moves.push(focus);
                 }
@@ -633,7 +628,7 @@ class Pawn extends Piece {
         if (last_move.piece.acronym == 'p') {
             if (Math.abs(last_move.from.y - last_move.to.y) == 2) {
                 if (this.y == last_move.to.y && Math.abs(this.x - last_move.to.x) == 1) {
-                    this.a_push(getTile(last_move.to.x, last_move.to.y + this.color));
+                    this.a_push(this.board.UF.getTile(last_move.to.x, last_move.to.y + this.color));
                 }
             }
         }
@@ -642,9 +637,10 @@ class Pawn extends Piece {
 
 }
 
-class Rook extends Piece {
-    constructor (x, y, color, test) {
-        super(x, y, color, test);
+class Rook extends Piece {   
+    constructor (x, y, color, test, board) {
+        super(x, y, color, test, board);
+
         this.acronym = 'r';
         this.type = 'Rook';
         this.value = 5;
@@ -657,46 +653,47 @@ class Rook extends Piece {
         let beamed = [];
         for (let i = this.x - 1; i >= 0; i--) {
             if (this.validate_moves(beamed, i, this.y)) {
-                beamed.push(getTile(i, this.y));
+                beamed.push(this.board.UF.getTile(i, this.y));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         beamed = [];
         for (let i = this.x + 1; i < 8; i++) {
             if (this.validate_moves(beamed, i, this.y)) {
-                beamed.push(getTile(i, this.y));
+                beamed.push(this.board.UF.getTile(i, this.y));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         beamed = [];
         for (let i = this.y - 1; i >= 0; i--) {
             if (this.validate_moves(beamed, this.x, i)) {
-                beamed.push(getTile(this.x, i));
+                beamed.push(this.board.UF.getTile(this.x, i));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         beamed = [];
         for (let i = this.y + 1; i < 8; i++) {
             if (this.validate_moves(beamed, this.x, i)) {
-                beamed.push(getTile(this.x, i));
+                beamed.push(this.board.UF.getTile(this.x, i));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
     }
 
 }
 
 class Knight extends Piece {
-    constructor (x, y, color, test) {
-        super(x, y, color, test);
+    constructor (x, y, color, test, board) {
+        super(x, y, color, test, board);
+
         this.acronym = 'n';
         this.type = 'Knight';
         this.value = 3;
@@ -709,13 +706,13 @@ class Knight extends Piece {
                 if (i + j == 3 || Math.abs(i - j) == 3) {
                     const generator = combinations(i, j, this.x, this.y);
                     for (let _ = 0; _ < 4; _++) {
-                        let s_gt = getTile(...generator.next().value)
+                        let s_gt = this.board.UF.getTile(...generator.next().value)
                         if (!s_gt) continue;
                         if (s_gt.occupation.color != this.color) {
                             this.a_push(s_gt);
                             continue;
                         }
-                        s_gt.attack(getTile(this.x, this.y));
+                        s_gt.attack(this.board.UF.getTile(this.x, this.y));
                     }
                 }
             }
@@ -724,8 +721,9 @@ class Knight extends Piece {
 }
 
 class Bishop extends Piece {
-    constructor (x, y, color, test) {
-        super(x, y, color, test);
+    constructor (x, y, color, test, board) {
+        super(x, y, color, test, board);
+
         this.acronym = 'b';
         this.type = 'Bishop';
         this.value = 3;
@@ -738,48 +736,49 @@ class Bishop extends Piece {
         for (let x = this.x + 1; x < 8; x++) {
             i--;
             if (this.validate_moves(beamed, x, this.y + i)) {
-                beamed.push(getTile(x, this.y + i));
+                beamed.push(this.board.UF.getTile(x, this.y + i));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         i = 0, beamed = [];
         for (let x = this.x - 1; x >= 0; x--) {
             i++;
             if (this.validate_moves(beamed, x, this.y + i)) {
-                beamed.push(getTile(x, this.y + i));
+                beamed.push(this.board.UF.getTile(x, this.y + i));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         i = 0, beamed = [];
         for (let y = this.y - 1; y >= 0; y--) {
             i--;
             if (this.validate_moves(beamed, this.x + i, y)) {
-                beamed.push(getTile(this.x + i, y));
+                beamed.push(this.board.UF.getTile(this.x + i, y));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         i = 0, beamed = [];
         for (let y = this.y + 1; y < 8; y++) {
             i++;
             if (this.validate_moves(beamed, this.x + i, y)) {
-                beamed.push(getTile(this.x + i, y));
+                beamed.push(this.board.UF.getTile(this.x + i, y));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
     }
 }
 
 class Queen extends Piece {
-    constructor (x, y, color, test) {
-        super(x, y, color, test);
+    constructor (x, y, color, test, board) {
+        super(x, y, color, test, board);
+
         this.acronym = 'q';
         this.type = 'Queen';
         this.value = 9;
@@ -793,78 +792,78 @@ class Queen extends Piece {
         for (let x = this.x + 1; x < 8; x++) {
             i--;
             if (this.validate_moves(beamed, x, this.y + i)) {
-                beamed.push(getTile(x, this.y + i));
+                beamed.push(this.board.UF.getTile(x, this.y + i));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         i = 0, beamed = [];
         for (let x = this.x - 1; x >= 0; x--) {
             i++;
             if (this.validate_moves(beamed, x, this.y + i)) {
-                beamed.push(getTile(x, this.y + i));
+                beamed.push(this.board.UF.getTile(x, this.y + i));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         i = 0, beamed = [];
         for (let y = this.y - 1; y >= 0; y--) {
             i--;
             if (this.validate_moves(beamed, this.x + i, y)) {
-                beamed.push(getTile(this.x + i, y));
+                beamed.push(this.board.UF.getTile(this.x + i, y));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         i = 0, beamed = [];
         for (let y = this.y + 1; y < 8; y++) {
             i++;
             if (this.validate_moves(beamed, this.x + i, y)) {
-                beamed.push(getTile(this.x + i, y));
+                beamed.push(this.board.UF.getTile(this.x + i, y));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         // Rook-like
         beamed = [];
         for (let i = this.x - 1; i >= 0; i--) {
             if (this.validate_moves(beamed, i, this.y)) {
-                beamed.push(getTile(i, this.y));
+                beamed.push(this.board.UF.getTile(i, this.y));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         beamed = [];
         for (let i = this.x + 1; i < 8; i++) {
             if (this.validate_moves(beamed, i, this.y)) {
-                beamed.push(getTile(i, this.y));
+                beamed.push(this.board.UF.getTile(i, this.y));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         beamed = [];
         for (let i = this.y - 1; i >= 0; i--) {
             if (this.validate_moves(beamed, this.x, i)) {
-                beamed.push(getTile(this.x, i));
+                beamed.push(this.board.UF.getTile(this.x, i));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
         beamed = [];
         for (let i = this.y + 1; i < 8; i++) {
             if (this.validate_moves(beamed, this.x, i)) {
-                beamed.push(getTile(this.x, i));
+                beamed.push(this.board.UF.getTile(this.x, i));
             }
         }
-        beamed.unshift(getTile(this.x, this.y));
-        board.pin(beamed);
+        beamed.unshift(this.board.UF.getTile(this.x, this.y));
+        this.board.pin(beamed);
 
     }
 
@@ -879,8 +878,9 @@ class Queen extends Piece {
  */
 class King extends Piece {
     // A strong contender for rewriting into something more legible...
-    constructor (x, y, color, test) {
-        super(x, y, color, test);
+    constructor (x, y, color, test, board) {
+        super(x, y, color, test, board);
+
         this.acronym = 'k';
         this.type = 'King';
         this.value = 100;
@@ -892,9 +892,9 @@ class King extends Piece {
         for (let i = -1; i < 2; i++) {
             for (let j = -1; j < 2; j++) {
                 if (i == 0 && j == 0) continue;
-                const focus = getTile(this.x + i, this.y + j);
+                const focus = this.board.UF.getTile(this.x + i, this.y + j);
                 if (!focus) continue;
-                focus.attack(getTile(this.x, this.y));
+                focus.attack(this.board.UF.getTile(this.x, this.y));
             }
         }
     }
@@ -902,17 +902,17 @@ class King extends Piece {
     f_moves() {
 
         this.moves = [];
-        if (attacked_by_enemy(getTile(this.x, this.y), this)) {
-            board.panic_mode(getTile(this.x, this.y));
+        if (this.board.UF.attacked_by_enemy(this.board.UF.getTile(this.x, this.y), this)) {
+            this.board.panic_mode(this.board.UF.getTile(this.x, this.y));
         }
         else {
-            board.calm_mode(getTile(this.x, this.y));
+            this.board.calm_mode(this.board.UF.getTile(this.x, this.y));
         }
 
         for (let i = -1; i < 2; i++) {
             for (let j = -1; j < 2; j++) {
                 if (i == 0 && j == 0) continue;
-                let s_gt = getTile(this.x + i, this.y + j)
+                let s_gt = this.board.UF.getTile(this.x + i, this.y + j)
                 if (!s_gt) continue;
                 if (!s_gt.occupation || s_gt.occupation.color != this.color) {
                     const prot = (s_gt => {
@@ -933,13 +933,13 @@ class King extends Piece {
 
         const res_castle = i => {
 
-            let i_tile = getTile(i, this.y);
+            let i_tile = this.board.UF.getTile(i, this.y);
             for (const a of i_tile.attacked) {
                 if (a.occupation.color !== this.color) return false;
             }
             let increment = (i > 4) ? 2 : -2;
             if ((i == 7 || i == 0) && i_tile.occupation && i_tile.occupation.acronym == 'r' && i_tile.occupation.color == this.color && i_tile.occupation.first_move) {
-                this.moves.push(getTile(this.x + increment, this.y));
+                this.moves.push(this.board.UF.getTile(this.x + increment, this.y));
                 return false;
             }
             if (i_tile.occupation) return false;
@@ -963,95 +963,6 @@ class King extends Piece {
 
 }
 
-/**
- * Function that translates fen string
- * @param fen - string to translate
- * @param place - decides whether should I place the piece or return everything in an array
- */
-function fen_translator (fen, test = false, place = true) {
-    const res = [];
-
-    let y = 0, x = 0;
-    for (let ch of fen) {
-        if (parseInt(ch)) {
-            x += +ch;
-            continue;
-        }
-        if (x >= 8 || ch == '/') {
-            x = 0;
-            y ++;
-            if (ch == '/') continue;
-        }
-
-        color = ch => {
-            if (ch === ch.toUpperCase()) return -1;
-            return 1;
-        };
-
-        switch (ch.toLowerCase()) {
-            case ("p"): {
-                res.push(new Pawn(x, y, color(ch), test));
-                break;
-            }
-            case ("r"): {
-                res.push(new Rook(x, y, color(ch), test));
-                break;
-            }
-            case ("b"): {
-                res.push(new Bishop(x, y, color(ch), test));
-                break;
-            }
-            case ("n"): {
-                res.push(new Knight(x, y, color(ch), test));
-                break;
-            }
-            case ("q"): {
-                res.push(new Queen(x, y, color(ch), test));
-                break;
-            }
-            case ("k"): {
-                res.push(new King(x, y, color(ch), test));
-                break;
-            }
-        }
-        if (place) {
-            res[res.length - 1].place(test);
-        }
-
-        x++;
-    }
-
-    return res;
-}
-
-/**
- * Utile function that returns all tiles in one single array
- */
-function get_all_tiles() {
-
-    let all = [];
-    board.tiles.forEach(t_row => {
-        t_row.forEach(t => {
-            all.push(t);
-        })
-    })
-
-    return all;
-
-}
-
-/**
- * A shortcut utile function, which fetches queried tile
- * @param {number} x X coordinate
- * @param {number} y Y coordinate
- * @returns {Tile} Tile object, which is further accessible
- */
-function getTile(x, y) {
-    let x_safe = parseInt(+x), y_safe = parseInt(+y);
-    if (x_safe > 7 || x_safe < 0 || y_safe > 7 || y_safe < 0) return false;
-    return board.tiles[x_safe][y_safe];
-}
-
 class Info {
 
     /**
@@ -1066,178 +977,12 @@ class Info {
     }
 }
 
-/**
- * @param {Event} e Pointer event associated with a click.
- * @returns {Info} Info object contains shortcuts to all tile information
- */
-function clicked_info(e) {
-
-    let target = e.target;
-    if (e.target instanceof HTMLImageElement) {
-        target = e.target.parentNode;
-    }
-    let x = target.getAttribute("x");
-    let y = target.getAttribute("y");
-
-    return new Info(getTile(x, y));
-
-}
-
 // Used for knight jumps
 function* combinations(i, j, x, y) {
     yield [x + i, y + j];
     yield [x - i, y - j];
     yield [x + i, y - j];
     yield [x - i, y + j];
-}
-
-function special_promotion(board, info) {
-
-    return new Promise ((resolve, reject) => {
-
-        const piece = getTile(info.x, info.y).occupation;
-
-        if (piece.acronym !== 'p') {
-            resolve();
-            return;
-        }
-
-        const target = (piece.color > 0) ? 7 : 0;
-
-        if (info.y != target) {
-            resolve();
-            return;
-        }
-
-        if (piece.color < 0) {
-            _promote_event(piece, 'q', true);
-            resolve();
-            return;
-        }
-
-        MI.masterblock = true;
-
-        const prom = document.querySelector("[js-prom]");
-        prom.classList.toggle("c-promotion--active");
-        const prom_children = prom.children;
-        const pieces = ['r', 'n', 'b', 'q'];
-        const srcs = _ => {
-            const code = (piece.color > 0) ? 'l' : 'd';
-            const res = pieces.map(p => {
-                return `pieces/Chess_${p}${code}t45.svg`;
-            })
-
-            return res;
-        }
-        srcs().forEach((v, i) => {
-            const option = prom_children[i];
-            const img = document.createElement('img');
-            img.classList.add("c-promotion__tab");
-            img.src = v;
-            img.setAttribute("piece", pieces[i]);
-            option.appendChild(img);
-        });
-
-        // Working section...
-
-        /**
-         * 
-         * @param {Piece} piece Original pawn that arrived
-         * @param {String} piece_to_change A string code for the new piece
-         * @param {Bool} Al Is it Al?
-         * @returns 
-         */
-        function _promote_event(piece, piece_to_change, Al = false) {
-            
-            const p_tile = getTile(piece.x, piece.y);
-
-            // const new_piece = new Queen(piece.x, piece.y, piece.color);
-            const args = [piece.x, piece.y, piece.color];
-
-            let new_piece;
-            switch(piece_to_change) {
-                case 'q':
-                    new_piece = new Queen(...args);
-                    break;
-                case 'r':
-                    new_piece = new Rook(...args);
-                    break;
-                case 'b':
-                    new_piece = new Bishop(...args);
-                    break;
-                case 'n':
-                    new_piece = new Knight(...args);
-                    break;
-                default:
-                    new_piece = new Queen(...args);
-            }
-
-            p_tile.remove_piece();
-
-            p_tile.place_piece(new_piece);
-            board.pieces.push(new_piece);
-
-        }
-
-        prom.addEventListener("pointerdown", e => {
-            const target = e.target;
-            if (!target.getAttribute('piece')) return;
-            const piece_to_change = target.getAttribute('piece');
-
-            _promote_event(piece, piece_to_change);
-
-            for (const c of prom_children) {
-                c.removeChild(c.children[0])
-            }
-
-            prom.classList.toggle("c-promotion--active");
-
-            resolve();
-            return;
-
-        }, {once: true});
-
-
-    });
-
-}
-
-/**
- * @param {Board} board Informace o hracím poli
- * @param {Selected} selected Objekt s informacemi o vybraném políčku
- * @param {Info} info Objekt s informacemi o cílovém políčku.
- */
-function special_moves(board, selected, info) {
-    // Detekce prvního pohybu, rošády, en-passant možnost,...
-    if ((selected.piece.acronym == 'p' || selected.piece.acronym == 'k' || selected.piece.acronym == 'r') && selected.piece.first_move) {
-        selected.piece.first_move = false;
-    }
-    // Detect if player is trying to do en passant:
-    if (selected.piece.acronym == 'p' && info.tile.x != selected.tile.x && !info.tile.occupation) {
-        // Do all necessary en passant steps:
-        let ptr = getTile(info.x, info.y - selected.piece.color);
-        ptr.remove_piece();
-    }
-
-    // Detect castles
-    if (selected.piece.acronym == 'k' && Math.abs(selected.tile.x - info.x) == 2) {
-
-        // Castle!
-        let ptm = getTile((info.x > 4) ? 7 : 0, info.y);
-        let target = getTile((info.x < 4) ? 3 : 5, info.y);
-        ptm.occupation.move(target.x, target.y);
-        target.place_piece(ptm.occupation)
-        ptm.remove_piece();
-
-    }
-
-}
-
-function attacked_by_enemy (tile, piece) {
-    for (const a of tile.attacked) {
-        if (a.occupation.color != piece.color) return true;
-    }
-    return false;
 }
 
 class Store {
@@ -1354,7 +1099,9 @@ class Mover {
 
         if (this.player > 0) return;
 
-        this.Al();
+        setTimeout(_ => {
+            this.Al();
+        }, Math.floor(Math.random() * 300));
 
     }
 
@@ -1490,6 +1237,261 @@ class Al_move {
 
 }
 
+class Utile_functions {
+    constructor(b) {
+        this.board = b;
+    }
+
+    attacked_by_enemy (tile, piece) {
+        for (const a of tile.attacked) {
+            if (a.occupation.color != piece.color) return true;
+        }
+        return false;
+    }
+
+    special_moves(selected, info) {
+        // Detekce prvního pohybu, rošády, en-passant možnost,...
+        if ((selected.piece.acronym == 'p' || selected.piece.acronym == 'k' || selected.piece.acronym == 'r') && selected.piece.first_move) {
+            selected.piece.first_move = false;
+        }
+        // Detect if player is trying to do en passant:
+        if (selected.piece.acronym == 'p' && info.tile.x != selected.tile.x && !info.tile.occupation) {
+            // Do all necessary en passant steps:
+            let ptr = getTile(info.x, info.y - selected.piece.color);
+            ptr.remove_piece();
+        }
+    
+        // Detect castles
+        if (selected.piece.acronym == 'k' && Math.abs(selected.tile.x - info.x) == 2) {
+    
+            // Castle!
+            let ptm = getTile((info.x > 4) ? 7 : 0, info.y);
+            let target = getTile((info.x < 4) ? 3 : 5, info.y);
+            ptm.occupation.move(target.x, target.y);
+            target.place_piece(ptm.occupation)
+            ptm.remove_piece();
+    
+        }
+    
+    }
+
+        /**
+     * @param {Event} e Pointer event associated with a click.
+     * @returns {Info} Info object contains shortcuts to all tile information
+     */
+    clicked_info(e) {
+
+        let target = e.target;
+        if (e.target instanceof HTMLImageElement) {
+            target = e.target.parentNode;
+        }
+        let x = target.getAttribute("x");
+        let y = target.getAttribute("y");
+
+        return new Info(getTile(x, y));
+
+    }
+
+    special_promotion(info) {
+
+        return new Promise ((resolve, reject) => {
+
+            const piece = getTile(info.x, info.y).occupation;
+
+            if (piece.acronym !== 'p') {
+                resolve();
+                return;
+            }
+
+            const target = (piece.color > 0) ? 7 : 0;
+
+            if (info.y != target) {
+                resolve();
+                return;
+            }
+
+            if (piece.color < 0) {
+                _promote_event(piece, 'q', true);
+                resolve();
+                return;
+            }
+
+            MI.masterblock = true;
+
+            const prom = document.querySelector("[js-prom]");
+            prom.classList.toggle("c-promotion--active");
+            const prom_children = prom.children;
+            const pieces = ['r', 'n', 'b', 'q'];
+            const srcs = _ => {
+                const code = (piece.color > 0) ? 'l' : 'd';
+                const res = pieces.map(p => {
+                    return `pieces/Chess_${p}${code}t45.svg`;
+                })
+
+                return res;
+            }
+            srcs().forEach((v, i) => {
+                const option = prom_children[i];
+                const img = document.createElement('img');
+                img.classList.add("c-promotion__tab");
+                img.src = v;
+                img.setAttribute("piece", pieces[i]);
+                option.appendChild(img);
+            });
+
+            // Working section...
+
+            /**
+             * 
+             * @param {Piece} piece Original pawn that arrived
+             * @param {String} piece_to_change A string code for the new piece
+             * @param {Bool} Al Is it Al?
+             * @returns 
+             */
+            function _promote_event(piece, piece_to_change, Al = false) {
+                
+                const p_tile = getTile(piece.x, piece.y);
+
+                // const new_piece = new Queen(piece.x, piece.y, piece.color);
+                const args = [piece.x, piece.y, piece.color];
+
+                let new_piece;
+                switch(piece_to_change) {
+                    case 'q':
+                        new_piece = new Queen(...args);
+                        break;
+                    case 'r':
+                        new_piece = new Rook(...args);
+                        break;
+                    case 'b':
+                        new_piece = new Bishop(...args);
+                        break;
+                    case 'n':
+                        new_piece = new Knight(...args);
+                        break;
+                    default:
+                        new_piece = new Queen(...args);
+                }
+
+                p_tile.remove_piece();
+
+                p_tile.place_piece(new_piece);
+                board.pieces.push(new_piece);
+
+            }
+
+            prom.addEventListener("pointerdown", e => {
+                const target = e.target;
+                if (!target.getAttribute('piece')) return;
+                const piece_to_change = target.getAttribute('piece');
+
+                _promote_event(piece, piece_to_change);
+
+                for (const c of prom_children) {
+                    c.removeChild(c.children[0])
+                }
+
+                prom.classList.toggle("c-promotion--active");
+
+                resolve();
+                return;
+
+            }, {once: true});
+
+
+        });
+
+    }
+
+        /**
+     * Utile function that returns all tiles in one single array
+     */
+    get_all_tiles() {
+
+        let all = [];
+        board.tiles.forEach(t_row => {
+            t_row.forEach(t => {
+                all.push(t);
+            })
+        })
+
+        return all;
+
+    }
+
+    /**
+     * A shortcut utile function, which fetches queried tile
+     * @param {number} x X coordinate
+     * @param {number} y Y coordinate
+     * @returns {Tile} Tile object, which is further accessible
+     */
+    getTile(x, y) {
+        let x_safe = parseInt(+x), y_safe = parseInt(+y);
+        if (x_safe > 7 || x_safe < 0 || y_safe > 7 || y_safe < 0) return false;
+        return board.tiles[x_safe][y_safe];
+    }
+
+
+    /**
+     * Function that translates fen string
+     * @param fen - string to translate
+     * @param place - decides whether should I place the piece or return everything in an array
+     */
+    fen_translator (fen, test = false) {
+        const res = [];
+
+        let y = 0, x = 0;
+        for (let ch of fen) {
+            if (parseInt(ch)) {
+                x += +ch;
+                continue;
+            }
+            if (x >= 8 || ch == '/') {
+                x = 0;
+                y ++;
+                if (ch == '/') continue;
+            }
+
+            let color = ch => {
+                if (ch === ch.toUpperCase()) return -1;
+                return 1;
+            };
+
+            switch (ch.toLowerCase()) {
+                case ("p"): {
+                    res.push(new Pawn(x, y, color(ch), test, this.board));
+                    break;
+                }
+                case ("r"): {
+                    res.push(new Rook(x, y, color(ch), test, this.board));
+                    break;
+                }
+                case ("b"): {
+                    res.push(new Bishop(x, y, color(ch), test, this.board));
+                    break;
+                }
+                case ("n"): {
+                    res.push(new Knight(x, y, color(ch), test, this.board));
+                    break;
+                }
+                case ("q"): {
+                    res.push(new Queen(x, y, color(ch), test, this.board));
+                    break;
+                }
+                case ("k"): {
+                    res.push(new King(x, y, color(ch), test, this.board));
+                    break;
+                }
+            }
+            res[res.length - 1].place(test);
+
+            x++;
+        }
+
+        return res;
+    }
+
+}
 
 const Recorder = new Store();
 
