@@ -15,12 +15,13 @@ class Board {
         };
         this.UF = new Utile_functions(this);
 
+
         for (let y = 7; y >= 0; y--) {
             for (let x = 0; x < 8; x++) {
                 if (this.tiles[x] == undefined) {
                     this.tiles[x] = [];
                 }
-                this.tiles[x].unshift(new Tile(x, y, this.test));
+                this.tiles[x].unshift(new Tile(x, y, this.test, this));
             }
         }
 
@@ -42,14 +43,17 @@ class Board {
 
         });
 
+        this.MI = new Mover(this);
+        this.MI.init_moves();
+
     }
 
     core (selected, info, Al = false) {
 
-        if (MI.masterblock) return;
+        if (this.MI.masterblock) return;
 
         if (!selected.tile && !info.occupation) return false;
-        if (!selected.tile && info.occupation.color != MI.player) return;
+        if (!selected.tile && info.occupation.color != this.MI.player) return;
 
         if (selected.tile == info.tile) {
             selected.reset();
@@ -63,7 +67,7 @@ class Board {
 
         if (selected.piece) {
 
-            if (this.panic[(MI.player > 0) ? 'w' : 'b']) {
+            if (this.panic[(this.MI.player > 0) ? 'w' : 'b']) {
                 if (!this.panic_moves(selected.tile, info.tile)) return false;
             }
 
@@ -92,8 +96,8 @@ class Board {
         selected.tile.remove_piece();
         selected.reset();
         await this.UF.special_promotion(info).then(_ => {
-            MI.masterblock = false;
-            MI.next_turn();
+            this.MI.masterblock = false;
+            this.MI.next_turn();
         });
     }
 
@@ -204,7 +208,7 @@ class Board {
             }
         }
 
-        MI.masterblock = true;
+        this.MI.masterblock = true;
 
         const win_message = `${(king.occupation.color > 0) ? 'Černá' : 'Bílá'} právě vyhrála!!!`;
         alert(win_message)
@@ -222,7 +226,7 @@ class Board {
      * @param {Tile} move New tile where I want to go. Typically info.tile prop
      * @returns {bool} Returns if the move can be considered as valid panic move.
      */
-    panic_moves(old, move, king = this.panic[(MI.player > 0) ? 'w' : 'b']) {
+    panic_moves(old, move, king = this.panic[(this.MI.player > 0) ? 'w' : 'b']) {
 
         const threat = king.attacked.filter(a => {
                 return a.occupation.color !== king.occupation.color;
@@ -335,7 +339,7 @@ class Board {
     }
 
     d_b_r() {
-        MI.masterblock = true;
+        this.MI.masterblock = true;
         window.alert("Deuce by repetition");
     }
 
@@ -356,13 +360,14 @@ class Board {
 
 class Tile {
 
-    constructor (x, y, test) {
+    constructor (x, y, test, board) {
 
         this.x = x;
         this.y = y;
         this.occupation = false;
         // COLOR?
         this.test = test;
+        this.board = board;
 
         if (test) return;
 
@@ -394,7 +399,7 @@ class Tile {
 
     remove_piece() {
         if (!this.occupation) return;
-        if (this.occupation.color != MI.player) {
+        if (this.occupation.color != this.board.MI.player) {
             this.occupation.x = false;
             this.occupation.y = false;
         }
@@ -1081,11 +1086,12 @@ class Store {
 
 class Mover {
 
-    constructor() {
+    constructor(board) {
         this.player = 1;
         this.turn = 1;
         this.masterblock = false;
         this.disabled_Al = false;
+        this.board = board;
     }
 
     next_turn() {
@@ -1107,7 +1113,7 @@ class Mover {
 
     Al () {
         if (!this.disabled_Al) {
-            new Al_move();
+            new Al_move(this.board);
         }
     }
 
@@ -1121,7 +1127,7 @@ class Mover {
     check_for_deuce() {
 
         const kings = [];
-        for (const p of board.pieces) {
+        for (const p of this.board.pieces) {
             if (p.x === false || p.y === false) continue;
             if (p.acronym !== 'k') return;
             kings.push(p);
@@ -1134,17 +1140,16 @@ class Mover {
     }
 
     deuce_no_moves(color) {
-        const pieces = board.pieces.filter(p => {
+
+        if (this.board.panic[(this.player > 0) ? 'w' : 'b']) return;
+        const pieces = this.board.pieces.filter(p => {
             return p.color === color;
-        })
+        });
 
         for (const p of pieces) {
-            if (!board.panic[(this.player > 0) ? 'w' : 'b']) {
-                if (p.moves.length) return;
-                continue;
-            }
+            if (p.moves.length) return;
             for (const m of p.moves) {
-                if (board.panic_moves(getTile(p.x, p.y), m)) return;
+                if (this.board.panic_moves(this.board.UF.getTile(p.x, p.y), m)) return;
             }
         }
 
@@ -1154,11 +1159,11 @@ class Mover {
     }
 
     init_moves() {
-        get_all_tiles().forEach(t => {
+        this.board.UF.get_all_tiles().forEach(t => {
             t.retreat();
         });
         const kings = [];
-        board.pieces.forEach(p => {
+        this.board.pieces.forEach(p => {
             p.moves = [];
             if (p.acronym == 'k') {
                 kings.push(p);
@@ -1171,18 +1176,19 @@ class Mover {
         })
         kings.forEach(k => {
             k.f_moves();
-            board.czechMate(getTile(k.x, k.y));
+            this.board.czechMate(this.board.UF.getTile(k.x, k.y));
         });
     }
 }
 
 class Al_move {
 
-    constructor() {
+    constructor(board) {
 
         this.my_pieces = [];
+        this.board = board;
 
-        board.Al_control = -1;
+        this.board.Al_control = -1;
 
         this.update_pieces();
         this.spent = [];
@@ -1190,13 +1196,13 @@ class Al_move {
 
         const x = new Board(true);
         x.start(Recorder.generate_report(-1), true);
-        console.log(x.eval(MI.player));
+        console.log(x.eval(this.board.MI.player));
 
     }
 
     update_pieces() {
-        this.my_pieces = board.pieces.filter(p => {
-            return p.x && p.y && p.color === board.Al_control;
+        this.my_pieces = this.board.pieces.filter(p => {
+            return p.x && p.y && p.color === this.board.Al_control;
         });
     }
 
@@ -1218,7 +1224,7 @@ class Al_move {
 
         const move = piece.moves[Math.floor(Math.random() * piece.moves.length)];
 
-        const origin = new Selected(getTile(piece.x, piece.y));
+        const origin = new Selected(this.board.UF.getTile(piece.x, piece.y));
         if (this.spent.indexOf(origin) > 0) {
             this.random_move();
             return;
@@ -1226,7 +1232,7 @@ class Al_move {
         this.spent.push(origin);
         const target = new Info(move);
 
-        const output = board.core(origin, target, true);
+        const output = this.board.core(origin, target, true);
 
         if (output === false) {
             this.random_move();
@@ -1257,7 +1263,7 @@ class Utile_functions {
         // Detect if player is trying to do en passant:
         if (selected.piece.acronym == 'p' && info.tile.x != selected.tile.x && !info.tile.occupation) {
             // Do all necessary en passant steps:
-            let ptr = getTile(info.x, info.y - selected.piece.color);
+            let ptr = this.board.UF.getTile(info.x, info.y - selected.piece.color);
             ptr.remove_piece();
         }
     
@@ -1265,8 +1271,8 @@ class Utile_functions {
         if (selected.piece.acronym == 'k' && Math.abs(selected.tile.x - info.x) == 2) {
     
             // Castle!
-            let ptm = getTile((info.x > 4) ? 7 : 0, info.y);
-            let target = getTile((info.x < 4) ? 3 : 5, info.y);
+            let ptm = this.board.UF.getTile((info.x > 4) ? 7 : 0, info.y);
+            let target = this.board.UF.getTile((info.x < 4) ? 3 : 5, info.y);
             ptm.occupation.move(target.x, target.y);
             target.place_piece(ptm.occupation)
             ptm.remove_piece();
@@ -1288,7 +1294,7 @@ class Utile_functions {
         let x = target.getAttribute("x");
         let y = target.getAttribute("y");
 
-        return new Info(getTile(x, y));
+        return new Info(this.board.UF.getTile(x, y));
 
     }
 
@@ -1296,7 +1302,7 @@ class Utile_functions {
 
         return new Promise ((resolve, reject) => {
 
-            const piece = getTile(info.x, info.y).occupation;
+            const piece = this.board.UF.getTile(info.x, info.y).occupation;
 
             if (piece.acronym !== 'p') {
                 resolve();
@@ -1409,7 +1415,7 @@ class Utile_functions {
     get_all_tiles() {
 
         let all = [];
-        board.tiles.forEach(t_row => {
+        this.board.tiles.forEach(t_row => {
             t_row.forEach(t => {
                 all.push(t);
             })
@@ -1428,7 +1434,7 @@ class Utile_functions {
     getTile(x, y) {
         let x_safe = parseInt(+x), y_safe = parseInt(+y);
         if (x_safe > 7 || x_safe < 0 || y_safe > 7 || y_safe < 0) return false;
-        return board.tiles[x_safe][y_safe];
+        return this.board.tiles[x_safe][y_safe];
     }
 
 
@@ -1495,13 +1501,14 @@ class Utile_functions {
 
 const Recorder = new Store();
 
-const board = new Board();
-// DO NOT TOUCH!!!!!
+function Chess (fen) {
+
+    const board = new Board();
+    board.start('rn2kb1r/ppp2ppp/5n2/6P1/3p1P2/3Pq2R/PPPK4/RNBQ1bN1');
+    console.log(board);
+
+}
 
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
-// TOUCH THIS!!!
+Chess(norm);
 
-board.start(norm);
-
-const MI = new Mover();
-MI.init_moves();
