@@ -1317,12 +1317,12 @@ class Utile_functions {
             }
 
             if (piece.color < 0) {
-                _promote_event(piece, 'q', true);
+                _promote_event(piece, 'q', this.board, true);
                 resolve();
                 return;
             }
 
-            MI.masterblock = true;
+            this.board.MI.masterblock = true;
 
             const prom = document.querySelector("[js-prom]");
             prom.classList.toggle("c-promotion--active");
@@ -1354,12 +1354,12 @@ class Utile_functions {
              * @param {Bool} Al Is it Al?
              * @returns 
              */
-            function _promote_event(piece, piece_to_change, Al = false) {
+            function _promote_event(piece, piece_to_change, board, Al = false) {
                 
-                const p_tile = getTile(piece.x, piece.y);
+                const p_tile = board.UF.getTile(piece.x, piece.y);
 
                 // const new_piece = new Queen(piece.x, piece.y, piece.color);
-                const args = [piece.x, piece.y, piece.color];
+                const args = [piece.x, piece.y, piece.color, board.MI.Al_control, board];
 
                 let new_piece;
                 switch(piece_to_change) {
@@ -1391,7 +1391,7 @@ class Utile_functions {
                 if (!target.getAttribute('piece')) return;
                 const piece_to_change = target.getAttribute('piece');
 
-                _promote_event(piece, piece_to_change);
+                _promote_event(piece, piece_to_change, this.board);
 
                 for (const c of prom_children) {
                     c.removeChild(c.children[0])
@@ -1504,8 +1504,7 @@ const Recorder = new Store();
 function Chess (fen) {
 
     const board = new Board();
-    board.start('rn2kb1r/ppp2ppp/5n2/6P1/3p1P2/3Pq2R/PPPK4/RNBQ1bN1');
-    console.log(board);
+    board.start(fen);
 
 }
 
