@@ -226,7 +226,8 @@ class Board {
             for (const p of this.pieces) {
                 if (p.color !== king.occupation.color) continue;
                 const p_b = this.UF.getTile(p.x, p.y);
-                for (const m of p_b.occupation.moves) {
+                if (!p_b) return;
+                for (const m of p_b.moves) {
                     if (this.panic_moves(p_b, m, king)) return;
                 }
             }
