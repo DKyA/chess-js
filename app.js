@@ -227,7 +227,7 @@ class Board {
             for (const p of this.pieces) {
                 if (p.color !== king.occupation.color) continue;
                 const p_b = this.UF.getTile(p.x, p.y);
-                if (!p_b) return;
+                if (!p_b.occupation) return;
                 for (const m of p_b.occupation.moves) {
                     if (this.panic_moves(p_b, m, king)) return;
                 }
@@ -439,7 +439,7 @@ class Board {
                         res -= 3;
                     }
                     if ((color < 0 && white) || (color > 0 && black)) {
-                        res += 1;
+                        res += (enemy_material > 120) ? 1 : 3;
                     }
 
                     return res;
@@ -452,12 +452,12 @@ class Board {
                     const mod = (color > 0) ? 0 : 7;
                     for (let i = 0; i < 2; i++) {
                         for (let j = 0; j < 8; j++) {
-                            if (j > 3 && j < 6) continue;
+                            if (j > 2 && j < 6) continue;
                             const tile = x.UF.getTile(j, mod + (i * color));
-                            if (tile.occupation.acronym === 'k' && tile.occupation.color === color && my_material > 50) return 1;
+                            if (tile.occupation.acronym === 'k' && tile.occupation.color === color && my_material > 115 || enemy_material > 115) return 1;
                         }
                     }
-                    return -0.5;
+                    return 0;
                 }
 
                 EVAL[5] = king_security();
