@@ -21,6 +21,7 @@ class Board {
         this.UF = new Utile_functions(this);
 
         this.Recorder = new Store();
+        this.czechMated = false;
 
 
         for (let y = 7; y >= 0; y--) {
@@ -227,13 +228,17 @@ class Board {
                 if (p.color !== king.occupation.color) continue;
                 const p_b = this.UF.getTile(p.x, p.y);
                 if (!p_b) return;
-                for (const m of p_b.moves) {
+                console.log(p_b);
+                for (const m of p_b.occupation.moves) {
                     if (this.panic_moves(p_b, m, king)) return;
                 }
             }
         }
 
+        this.czechMated == king.occupation.color;
         this.MI.masterblock = true;
+
+        if (this.test) return;
 
         const win_message = `${(king.occupation.color > 0) ? 'Černá' : 'Bílá'} právě vyhrála!!!`;
         alert(win_message)
@@ -375,60 +380,48 @@ class Board {
      */
     eval(color) {
 
-        // This thing sort of works. I need to FIRST project all my moves, eliminate some under some threshold (like -100) and only THEN subtract the best counterplay.
-
         const rating = (x) => {
 
-            let EVAL = 0;
+            let EVAL = [0, 0, 0, 0, 0];
             let control = 0;
 
-            for (const t of x.UF.get_all_tiles()) {
-                // Pieces I influence...
-                for (const a of t.attacked) {
-                    if (a.occupation.color === color) {
-                        control += ((color > 0) ? t.y : 7-t.y);
-                        continue;
-                    }
-                    control -= ((color > 0) ? 7-t.y : t.y) * .1;
-                }
-            }
-
-            // My pieces:
-            EVAL += 1.5 * control;
-
-            let piece_count = 0;
-            x.pieces.forEach(p => {
-                if (p.x === false || p.y === false) return;
-                if (p.color === color) {
-                    piece_count += p.value;
-                } else {
-                    piece_count -= p.value * 1;
-                }
+            const t_p = x.pieces.filter(t => {
+                return t.x !== false && t.y !== false && t.color === color;
             });
 
-            EVAL += piece_count;
+            if (x.czechMated === color * -1) {
+                EVAL[0] = 100000;
+            }
 
-            // Can I possibly take? -- This one has problems...
-            let offenses = 0;
-            x.pieces.forEach(p => {
-                if (p.x === false || p.y === false || p.color === color) return;
-                const home = x.UF.getTile(p.x, p.y);
-                let first = true, new_offense = 0;
-                home.attacked.forEach(a => {
-                    if (a.occupation.color === color) {
-                        new_offense += p.value * ((first) ? 1 : 0.5);
-                        first = false;
-                    }
-                    else {
-                        new_offense *= 0.75;
-                    }
-                });
-                offenses += new_offense;
-            })
+            for (const p of t_p) {
 
-            EVAL += 4 * offenses;
-            if (check[0] > 30) return;
-            check[0]++;
+                const p_t = x.UF.getTile(p.x, p.y);
+
+                // Calculating piece danger
+                const attacked = _ => {
+
+                    let attacks = - p.value, active = false;
+                    p_t.attacked.forEach(a => {
+                        attacks += (a.occupation.value * (a.occupation.color === color) ? 1 : -1);
+                        if (a.occupation.color === color) return;
+                        active = true;
+                    });
+
+                    if (attacks > 0 || !active) return 0;
+
+                    return attacks;
+
+                }
+
+                EVAL[1] += attacked();
+
+                if (!p.moves.length) continue;
+                EVAL[2] += p.moves.length * .3;
+
+                
+
+            }
+
 
             return EVAL;
 
@@ -449,7 +442,12 @@ class Board {
                 const to = new Info(y.UF.getTile(m.x, m.y));
 
                 if (y.core(from, to, true) === false) return;
-                my_moves.push({from: x.UF.getTile(p.x, p.y), to: m, value: rating(y)});
+                y.MI.next_turn();
+                y.MI.next_turn();
+                console.log(y.MI.player);
+
+                const r = rating(y);
+                my_moves.push({from: x.UF.getTile(p.x, p.y), to: m, value: rating(y).reduce((sum, a) => sum + a, 0), individuals: r});
 
             });
         });
@@ -641,7 +639,7 @@ class Piece {
     }
 
     validate_moves(beamed, x, y) {
-        // How to set beamed here? 
+        // How to set beamed here?
 
         const t = this.board.UF.getTile(x, y);
         if (!t) return false;
@@ -675,6 +673,7 @@ class Piece {
                 pinned_moves.push(m);
                 return;
             }
+            console.log(threat);
             threat.occupation.moves.forEach(t => {
                 if (m === t) {
                     pinned_moves.push(m);
@@ -746,7 +745,7 @@ class Pawn extends Piece {
 
 }
 
-class Rook extends Piece {   
+class Rook extends Piece {
     constructor (x, y, color, test, board) {
         super(x, y, color, test, board);
 
@@ -1056,6 +1055,7 @@ class King extends Piece {
         }
 
         // Castles:
+        if (this.board.panic[(this.color > 0) ? 'w' : 'b']) return;
         if (this.first_move && this.x == 4 && this.y == ((this.color > 0) ? 0 : 7)) {
             // Start thinking...
             for (let i = this.x + 1; i < 8; i++) {
@@ -1113,7 +1113,7 @@ class Store {
 
     }
     /**
-     * Console-side testing function that produces a fen string from current situation. 
+     * Console-side testing function that produces a fen string from current situation.
      * @param {int} move Move from which report should be generated. First move has value 1! Count from the end > negatives
      * @returns {string} Fen string with information
      */
@@ -1210,7 +1210,7 @@ class Mover {
 
         if (this.board.test) return;
 
-        if (this.player > 0) return;
+        if (this.player > 0 || this.board.test) return;
 
         setTimeout(_ => {
             this.Al();
@@ -1384,19 +1384,19 @@ class Utile_functions {
             let ptr = this.board.UF.getTile(info.x, info.y - selected.piece.color);
             ptr.remove_piece();
         }
-    
+
         // Detect castles
         if (selected.piece.acronym == 'k' && Math.abs(selected.tile.x - info.x) == 2) {
-    
+
             // Castle!
             let ptm = this.board.UF.getTile((info.x > 4) ? 7 : 0, info.y);
             let target = this.board.UF.getTile((info.x < 4) ? 3 : 5, info.y);
             ptm.occupation.move(target.x, target.y);
             target.place_piece(ptm.occupation)
             ptm.remove_piece();
-    
+
         }
-    
+
     }
 
         /**
@@ -1466,14 +1466,14 @@ class Utile_functions {
             // Working section...
 
             /**
-             * 
+             *
              * @param {Piece} piece Original pawn that arrived
              * @param {String} piece_to_change A string code for the new piece
              * @param {Bool} Al Is it Al?
-             * @returns 
+             * @returns
              */
             function _promote_event(piece, piece_to_change, board, Al = false) {
-                
+
                 const p_tile = board.UF.getTile(piece.x, piece.y);
 
                 // const new_piece = new Queen(piece.x, piece.y, piece.color);
@@ -1652,7 +1652,7 @@ class Utile_functions {
         }
         return i;
     }
-    
+
     /**
      * @param {array} items Original array to be sorted
      * @param {number} left Initial position, typically 0
