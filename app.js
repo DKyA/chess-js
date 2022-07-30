@@ -228,7 +228,6 @@ class Board {
                 if (p.color !== king.occupation.color) continue;
                 const p_b = this.UF.getTile(p.x, p.y);
                 if (!p_b) return;
-                console.log(p_b);
                 for (const m of p_b.occupation.moves) {
                     if (this.panic_moves(p_b, m, king)) return;
                 }
@@ -382,8 +381,7 @@ class Board {
 
         const rating = (x) => {
 
-            let EVAL = [0, 0, 0, 0, 0];
-            let control = 0;
+            let EVAL = [0, 0, 0, 0, 0, 0];
 
             const t_p = x.pieces.filter(t => {
                 return t.x !== false && t.y !== false && t.color === color;
@@ -418,7 +416,51 @@ class Board {
                 if (!p.moves.length) continue;
                 EVAL[2] += p.moves.length * .3;
 
-                
+                // Now we will make attacks
+                // I like taking material
+
+                const my_material = t_p.reduce((sum, a) => {
+                    if (a.y !== false && a.x !== false) return sum + a.value;
+                    return sum + 0;
+                }, 0);
+
+                const enemy_material = x.pieces.reduce((sum, a) => {
+                    if (a.color !== color && a.x !== false && a.y !== false) return sum + a.value;
+                    return sum + 0;
+                }, 0);
+
+                EVAL[3] = my_material - enemy_material
+
+                const panic_k = _ => {
+                    const white = x.panic.w;
+                    const black = x.panic.b;
+                    let res = 0;
+                    if ((color > 0 && white) || color < 0 && black) {
+                        res -= 3;
+                    }
+                    if ((color < 0 && white) || (color > 0 && black)) {
+                        res += 1;
+                    }
+
+                    return res;
+                }
+
+                EVAL[4] = panic_k();
+
+                // King security:
+                const king_security = _ => {
+                    const mod = (color > 0) ? 0 : 7;
+                    for (let i = 0; i < 2; i++) {
+                        for (let j = 0; j < 8; j++) {
+                            if (j > 3 && j < 6) continue;
+                            const tile = x.UF.getTile(j, mod + (i * color));
+                            if (tile.occupation.acronym === 'k' && tile.occupation.color === color && my_material > 50) return 1;
+                        }
+                    }
+                    return -0.5;
+                }
+
+                EVAL[5] = king_security();
 
             }
 
@@ -444,7 +486,6 @@ class Board {
                 if (y.core(from, to, true) === false) return;
                 y.MI.next_turn();
                 y.MI.next_turn();
-                console.log(y.MI.player);
 
                 const r = rating(y);
                 my_moves.push({from: x.UF.getTile(p.x, p.y), to: m, value: rating(y).reduce((sum, a) => sum + a, 0), individuals: r});
@@ -501,7 +542,7 @@ class Tile {
 
     remove_piece() {
         if (!this.occupation) return;
-        if (this.occupation.color != this.board.MI.player) {
+        if ((this.occupation.color !== this.board.MI.player)) {
             this.occupation.x = false;
             this.occupation.y = false;
         }
@@ -665,6 +706,7 @@ class Piece {
     }
 
     pin (threat, beamed) {
+        if (!threat.occupation) return;
 
         const pinned_moves = [];
 
@@ -673,7 +715,6 @@ class Piece {
                 pinned_moves.push(m);
                 return;
             }
-            console.log(threat);
             threat.occupation.moves.forEach(t => {
                 if (m === t) {
                     pinned_moves.push(m);
@@ -1214,7 +1255,7 @@ class Mover {
 
         setTimeout(_ => {
             this.Al();
-        }, Math.floor(Math.random() * 300));
+        }, Math.floor(Math.random() * 200) + 100);
 
     }
 
