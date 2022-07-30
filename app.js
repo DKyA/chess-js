@@ -4,6 +4,11 @@ class Board {
 
     constructor(test = false) {
         // Initialising tiles:
+        this.init(test);
+
+    }
+
+    init (test) {
 
         this.test = test;
         this.tiles = [];
@@ -14,6 +19,8 @@ class Board {
             b_chain: false
         };
         this.UF = new Utile_functions(this);
+
+        this.Recorder = new Store();
 
 
         for (let y = 7; y >= 0; y--) {
@@ -29,11 +36,16 @@ class Board {
 
     }
 
-    start(fen, test = false) {
+    start(fen, test = false, starts = 1) {
+        this.fen = fen;
         this.pieces = this.UF.fen_translator(fen, test);
+        this.starts = starts;
 
         let selected = new Selected()
         // CORE FUNCTION!!!
+
+        this.MI = new Mover(this, starts);
+        this.MI.init_moves();
 
         if (test) return; // This is VERY temporary
         board_src.addEventListener("pointerdown", (e) => {
@@ -43,8 +55,17 @@ class Board {
 
         });
 
-        this.MI = new Mover(this);
-        this.MI.init_moves();
+    }
+
+    reset() {
+
+        for (let prop in this) {
+            if (prop === 'fen' || prop == 'starts') continue;
+            prop = false;
+        }
+
+        this.init(true);
+        this.start(this.fen, true, this.starts)
 
     }
 
@@ -72,9 +93,12 @@ class Board {
             }
 
             selected.piece.moves.forEach(m => {
-                if (m == info.tile) {
+
+                if (m.x == info.tile.x && m.y == info.tile.y) {
+
                     this.move(selected, info);
                     return true;
+
                 }
             });
         }
@@ -88,7 +112,7 @@ class Board {
      */
     async move (selected, info) {
         if (!selected.piece) return;
-        Recorder.store(selected, info, this);
+        this.Recorder.store(selected, info, this);
         this.UF.special_moves(selected, info);
         info.tile.remove_piece();
         info.tile.place_piece(selected.piece);
@@ -350,9 +374,86 @@ class Board {
      */
     eval(color) {
 
-        console.log(color);
+        // This thing sort of works. I need to FIRST project all my moves, eliminate some under some threshold (like -100) and only THEN subtract the best counterplay.
 
-        return 1
+        const rating = (x) => {
+
+            let EVAL = 0;
+            let control = 0;
+
+            for (const t of x.UF.get_all_tiles()) {
+                // Pieces I influence...
+                for (const a of t.attacked) {
+                    if (a.occupation.color === color) {
+                        control += ((color > 0) ? t.y : 7-t.y);
+                        continue;
+                    }
+                    control -= ((color > 0) ? 7-t.y : t.y) * .1;
+                }
+            }
+
+            // My pieces:
+            EVAL += 1.5 * control;
+
+            let piece_count = 0;
+            x.pieces.forEach(p => {
+                if (p.x === false || p.y === false) return;
+                if (p.color === color) {
+                    piece_count += p.value;
+                } else {
+                    piece_count -= p.value * 1;
+                }
+            });
+
+            EVAL += piece_count;
+
+            // Can I possibly take? -- This one has problems...
+            let offenses = 0;
+            x.pieces.forEach(p => {
+                if (p.x === false || p.y === false || p.color === color) return;
+                const home = x.UF.getTile(p.x, p.y);
+                let first = true, new_offense = 0;
+                home.attacked.forEach(a => {
+                    if (a.occupation.color === color) {
+                        new_offense += p.value * ((first) ? 1 : 0.5);
+                        first = false;
+                    }
+                    else {
+                        new_offense *= 0.75;
+                    }
+                });
+                offenses += new_offense;
+            })
+
+            EVAL += 4 * offenses;
+            if (check[0] > 30) return;
+            check[0]++;
+
+            return EVAL;
+
+        }
+
+        // My positions:
+
+        const my_moves = [];
+
+        const x = new Board(true);
+        x.start(this.Recorder.generate_report(-1), true, color);
+        x.pieces.forEach(p => {
+            if (p.color !== color) return;
+            p.moves.forEach(m => {
+                const y = new Board(true);
+                y.start(this.Recorder.generate_report(-1), true, color);
+                const from = new Selected(y.UF.getTile(p.x, p.y));
+                const to = new Info(y.UF.getTile(m.x, m.y));
+
+                if (y.core(from, to, true) === false) return;
+                my_moves.push({from: x.UF.getTile(p.x, p.y), to: m, value: rating(y)});
+
+            });
+        });
+
+        return my_moves;
 
     }
 
@@ -368,6 +469,9 @@ class Tile {
         // COLOR?
         this.test = test;
         this.board = board;
+
+        this.attacked = [];
+        this.influenced = false;
 
         if (test) return;
 
@@ -386,8 +490,7 @@ class Tile {
         this.element.setAttribute('x', x);
         this.element.setAttribute('y', y);
         board_src.appendChild(this.element);
-        this.attacked = [];
-        this.influenced = false;
+
 
     }
 
@@ -628,7 +731,7 @@ class Pawn extends Piece {
         });
 
         // En passant:
-        let last_move = Recorder.moves[Recorder.moves.length - 1];
+        let last_move = this.board.Recorder.moves[this.board.Recorder.moves.length - 1];
         if (!last_move) return;
         if (last_move.piece.acronym == 'p') {
             if (Math.abs(last_move.from.y - last_move.to.y) == 2) {
@@ -1086,8 +1189,8 @@ class Store {
 
 class Mover {
 
-    constructor(board) {
-        this.player = 1;
+    constructor(board, starts) {
+        this.player = starts;
         this.turn = 1;
         this.masterblock = false;
         this.disabled_Al = false;
@@ -1095,13 +1198,16 @@ class Mover {
     }
 
     next_turn() {
+
         this.turn++;
-        this.player = (this.turn % 2) ? 1 : -1;
+        this.player *= -1;
 
         this.check_for_deuce();
         this.init_moves();
         this.deuce_no_moves(1);
         this.deuce_no_moves(-1);
+
+        if (this.board.test) return;
 
         if (this.player > 0) return;
 
@@ -1192,11 +1298,22 @@ class Al_move {
 
         this.update_pieces();
         this.spent = [];
-        this.random_move();
 
-        const x = new Board(true);
-        x.start(Recorder.generate_report(-1), true);
-        console.log(x.eval(this.board.MI.player));
+        this.self_weighted_move();
+
+    }
+
+    self_weighted_move() {
+        const results = this.board.eval(this.board.Al_control);
+        const results_sorted = this.board.UF.quickSortMoves(results, 0, results.length - 1);
+        console.log(results_sorted);
+
+        for (let i = 0; i < results_sorted.length; i++) {
+            const from = new Selected(this.board.UF.getTile(results_sorted[i].from.x, results_sorted[i].from.y));
+            const to   = new Info    (this.board.UF.getTile(results_sorted[i].to  .x, results_sorted[i].to.  y));
+            if (this.board.core(from, to, true) === false) continue;
+            break;
+        }
 
     }
 
@@ -1497,9 +1614,65 @@ class Utile_functions {
         return res;
     }
 
-}
+    /**
+     * Helper function for Quick sort
+     * @param {Array} items Array to sort
+     * @param {number} leftIndex Start
+     * @param {number} rightIndex End
+     */
+    swap(items, leftIndex, rightIndex){
+        let temp = items[leftIndex];
+        items[leftIndex] = items[rightIndex];
+        items[rightIndex] = temp;
+    }
+    /**
+     * Part of QSM function. Do not call manually.
+     * @param {Array} items Array to sort
+     * @param {number} left Sort from here
+     * @param {number} right Sort to this index
+     * @returns Index of the next middle
+     */
+    partition(items, left, right) {
+        let pivot   = items[Math.floor((right + left) / 2)], //middle element
+            i       = left, //left pointer
+            j       = right; //right pointer
+        while (i <= j) {
+            while (items[i].value > pivot.value) {
+                i++;
+            }
+            while (items[j].value < pivot.value) {
+                j--;
+            }
+            if (i <= j) {
+                this.swap(items, i, j); //sawpping two elements
+                i++;
+                j--;
+            }
+        }
+        return i;
+    }
+    
+    /**
+     * @param {array} items Original array to be sorted
+     * @param {number} left Initial position, typically 0
+     * @param {number} right Initial end position, typically items.length - 1
+     * @returns Sorted array
+     */
+    quickSortMoves(items, left, right) {
+        let index;
+        if (items.length > 1) {
+            index = this.partition(items, left, right);
+            if (left < index - 1) { //more elements on the left side of the pivot
+                this.quickSortMoves(items, left, index - 1);
+            }
+            if (index < right) { //more elements on the right side of the pivot
+                this.quickSortMoves(items, index, right);
+            }
+        }
+        return items;
+    }
 
-const Recorder = new Store();
+}
 
 function Chess (fen) {
 
@@ -1508,6 +1681,7 @@ function Chess (fen) {
 
 }
 
+const check = [0];
+
 const norm = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 Chess(norm);
-
