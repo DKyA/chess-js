@@ -395,6 +395,16 @@ class Board {
                 return t.x !== false && t.y !== false && t.color === color;
             });
 
+            const my_material = t_p.reduce((sum, a) => {
+                if (a.y !== false && a.x !== false) return sum + a.value;
+                return sum + 0;
+            }, 0);
+
+            const enemy_material = x.pieces.reduce((sum, a) => {
+                if (a.color !== color && a.x !== false && a.y !== false) return sum + a.value;
+                return sum + 0;
+            }, 0);
+
             if (x.czechMated === color * -1) {
                 EVAL[0] = 100000;
             }
@@ -433,7 +443,12 @@ class Board {
                         const y_difference = Math.abs(m.y - enemy_king.y);
 
                         const res = (x_difference > y_difference) ? x_difference * 2 : y_difference * 2;
-                        const k = 1 / (3 + res);
+                        let base = 1;
+                        if (p.acronym !== 'p' || p.acronym !== 'k') {
+                            if (p.moves.length > 3 && t_p.length > 13) base++;
+                        }
+                        if ((my_material > enemy_material && enemy_material < 115)) base++;
+                        const k = base / (4 + res);
 
                         return sum + k;
 
@@ -441,23 +456,12 @@ class Board {
 
                     EVAL[2] += K;
 
-                    // EVAL[2] += p.moves.length * .3;
                 }
 
                 // Now we will make attacks
                 // I like taking material
 
-                const my_material = t_p.reduce((sum, a) => {
-                    if (a.y !== false && a.x !== false) return sum + a.value;
-                    return sum + 0;
-                }, 0);
-
-                const enemy_material = x.pieces.reduce((sum, a) => {
-                    if (a.color !== color && a.x !== false && a.y !== false) return sum + a.value;
-                    return sum + 0;
-                }, 0);
-
-                EVAL[3] = my_material - enemy_material
+                EVAL[3] = (my_material - enemy_material) * 1.5
 
                 const panic_k = _ => {
                     const white = x.panic.w;
@@ -467,7 +471,7 @@ class Board {
                         res -= 3;
                     }
                     if ((color < 0 && white) || (color > 0 && black)) {
-                        res += (enemy_material > 116) ? 1 : (E[3] > 0) ? 2 : 0;
+                        res += (enemy_material > 116) ? 0.5 : (E[3] > 0) ? 2 : 0;
                     }
 
                     return res;
