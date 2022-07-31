@@ -1142,6 +1142,9 @@ class Store {
         this.deuce_available = false;
     }
     store(selected, info, board) {
+
+        if (this.moves.length) this.toggle_history();
+
         this.moves.push({
             piece: selected.piece,
             color: selected.piece.color,
@@ -1153,6 +1156,11 @@ class Store {
         this.deuce_by_repetition();
 
     }
+
+    toggle_history() {
+        // COlor function
+    }
+
     /**
      * Console-side testing function that produces a fen string from current situation.
      * @param {int} move Move from which report should be generated. First move has value 1! Count from the end > negatives
