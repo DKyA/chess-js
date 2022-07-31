@@ -383,7 +383,15 @@ class Board {
 
             let EVAL = [0, 0, 0, 0, 0, 0, 0];
 
+            let enemy_king;
+            let my_king;
             const t_p = x.pieces.filter(t => {
+                if (t.acronym === 'k' && t.color === color) {
+                    my_king = t;
+                }
+                if (t.acronym === 'k' && t.color !== color) {
+                    enemy_king = t;
+                }
                 return t.x !== false && t.y !== false && t.color === color;
             });
 
@@ -414,7 +422,26 @@ class Board {
                 EVAL[1] += attacked();
 
                 if (p.moves.length) {
-                    EVAL[2] += p.moves.length * .3;
+
+                    const K = p.moves.reduce((sum, m) => {
+                        // I will have a distance to enemy king.
+                        // If lategame and I am winning, then I want to double the koeficient
+                        // if lategame and I am losing, then I want to have control around my king.
+                        // Distance = most extended coordinate. 11 - 22 is 1 distance.
+
+                        const x_difference = Math.abs(m.x - enemy_king.x);
+                        const y_difference = Math.abs(m.y - enemy_king.y);
+
+                        const res = (x_difference > y_difference) ? x_difference * 2 : y_difference * 2;
+                        const k = 1 / (3 + res);
+
+                        return sum + k;
+
+                    }, 0);
+
+                    EVAL[2] += K;
+
+                    // EVAL[2] += p.moves.length * .3;
                 }
 
                 // Now we will make attacks
@@ -440,7 +467,7 @@ class Board {
                         res -= 3;
                     }
                     if ((color < 0 && white) || (color > 0 && black)) {
-                        res += (enemy_material > 120) ? 1 : 2;
+                        res += (enemy_material > 116) ? 1 : (E[3] > 0) ? 2 : 0;
                     }
 
                     return res;
