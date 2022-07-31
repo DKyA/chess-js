@@ -381,7 +381,7 @@ class Board {
 
         const rating = (x) => {
 
-            let EVAL = [0, 0, 0, 0, 0, 0, 0];
+            let EVAL = [0, 0, 0, 0, 0, 0, 0, 0];
 
             let enemy_king;
             let my_king;
@@ -423,7 +423,7 @@ class Board {
                         active = true;
                     });
 
-                    if (attacks > 0 || !active) return 0;
+                    if (!active) return 0;
 
                     return attacks;
 
@@ -461,7 +461,7 @@ class Board {
                 // Now we will make attacks
                 // I like taking material
 
-                EVAL[3] = (my_material - enemy_material) * 1.5
+                EVAL[3] = (my_material - enemy_material);
 
                 const panic_k = _ => {
                     const white = x.panic.w;
@@ -471,7 +471,7 @@ class Board {
                         res -= 3;
                     }
                     if ((color < 0 && white) || (color > 0 && black)) {
-                        res += (enemy_material > 116) ? 0.5 : (E[3] > 0) ? 2 : 0;
+                        res += (enemy_material > 116) ? 0.5 : (EVAL[3] > 0) ? 2 : 0;
                     }
 
                     return res;
