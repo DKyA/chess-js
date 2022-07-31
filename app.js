@@ -1576,7 +1576,7 @@ class Utile_functions {
 
     }
 
-        /**
+    /**
      * Utile function that returns all tiles in one single array
      */
     get_all_tiles() {
@@ -1603,7 +1603,6 @@ class Utile_functions {
         if (x_safe > 7 || x_safe < 0 || y_safe > 7 || y_safe < 0) return false;
         return this.board.tiles[x_safe][y_safe];
     }
-
 
     /**
      * Function that translates fen string
