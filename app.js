@@ -381,7 +381,7 @@ class Board {
 
         const rating = (x) => {
 
-            let EVAL = [0, 0, 0, 0, 0, 0];
+            let EVAL = [0, 0, 0, 0, 0, 0, 0];
 
             const t_p = x.pieces.filter(t => {
                 return t.x !== false && t.y !== false && t.color === color;
@@ -413,8 +413,9 @@ class Board {
 
                 EVAL[1] += attacked();
 
-                if (!p.moves.length) continue;
-                EVAL[2] += p.moves.length * .3;
+                if (p.moves.length) {
+                    EVAL[2] += p.moves.length * .3;
+                }
 
                 // Now we will make attacks
                 // I like taking material
@@ -439,7 +440,7 @@ class Board {
                         res -= 3;
                     }
                     if ((color < 0 && white) || (color > 0 && black)) {
-                        res += (enemy_material > 120) ? 1 : 3;
+                        res += (enemy_material > 120) ? 1 : 2;
                     }
 
                     return res;
@@ -449,18 +450,20 @@ class Board {
 
                 // King security:
                 const king_security = _ => {
+                    if (my_material < 115 || enemy_material < 115) return 0;
                     const mod = (color > 0) ? 0 : 7;
                     for (let i = 0; i < 2; i++) {
                         for (let j = 0; j < 8; j++) {
                             if (j > 2 && j < 6) continue;
                             const tile = x.UF.getTile(j, mod + (i * color));
-                            if (tile.occupation.acronym === 'k' && tile.occupation.color === color && my_material > 115 || enemy_material > 115) return 1;
+                            if (tile.occupation.acronym === 'k' && tile.occupation.color === color) return 2;
                         }
                     }
                     return 0;
                 }
 
                 EVAL[5] = king_security();
+                EVAL[6] = 139 - enemy_material; // I am just making trades valuable.
 
             }
 
