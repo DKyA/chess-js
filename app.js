@@ -389,11 +389,15 @@ class Board {
                 if (t.acronym === 'k' && t.color === color) {
                     my_king = t;
                 }
+                return t.x !== false && t.y !== false && t.color === color;
+            });
+
+            const e_p = x.pieces.filter(t => {
                 if (t.acronym === 'k' && t.color !== color) {
                     enemy_king = t;
                 }
-                return t.x !== false && t.y !== false && t.color === color;
-            });
+                return t.x !== false && t.y !== false && t.color !== color;
+            })
 
             const my_material = t_p.reduce((sum, a) => {
                 if (a.y !== false && a.x !== false) return sum + a.value;
@@ -416,16 +420,56 @@ class Board {
                 // Calculating piece danger
                 const attacked = _ => {
 
-                    let attacks = - p.value, active = false;
-                    p_t.attacked.forEach(a => {
-                        attacks += (a.occupation.value * (a.occupation.color === color) ? 1 : -1);
-                        if (a.occupation.color === color) return;
-                        active = true;
-                    });
+                    const sort_attacks = subset => {
+                        const packets = subset.map(s => new ValueContainer(s, s.occupation.value));
+                        const sorted = x.UF.quickSortMoves(packets, 0, packets.length - 1);
+                        return sorted.map(s => s.information);
+                    }
 
-                    if (!active) return 0;
+                    const threats_raw = p_t.attacked.filter(a => a.occupation.color !== color);
+                    const supports_raw = p_t.attacked.filter(a => a.occupation.color === color);
 
-                    return attacks;
+                    const threats = sort_attacks(threats_raw);
+                    const supports = sort_attacks(supports_raw);
+
+                    if (!threats.length) return 0;
+                    if (!supports.length && threats.length) return - p.value;
+
+                    // Multi-factor thing. 1 - are lower-value pieces taking me? Yes? Probably not a great idea. He can deny.
+                    for (const t of threats) {
+                        if (t.occupation.value < p.value) return (t.occupation.value - p.value);
+                    }
+
+                    let Koeficient = 0;
+
+                    supports.unshift(p_t);
+
+                    for (let i = 0; i < (threats.length > supports.length) ? threats.length : supports.length; i++) {
+
+                        if (!threats[i] || !supports[i]) {
+                            const mod = (threats.length) ? -1 : 1;
+                            Koeficient += mod * ((mod > 0) ? supports : threats).reduce((sum, i) => sum + i.occupation.value, 0);
+                            break;
+                        }
+
+                        if (threats[i].value > supports[i].value) return 0;
+
+                        Koeficient += (supports[i].occupation.value - threats[i].occupation.value);
+
+                    }
+
+                    return Koeficient;
+
+                    // let attacks = - p.value, active = false;
+                    // p_t.attacked.forEach(a => {
+                    //     attacks += (a.occupation.value * (a.occupation.color === color) ? 1 : -1);
+                    //     if (a.occupation.color === color) return;
+                    //     active = true;
+                    // });
+
+                    // if (!active) return 0;
+
+                    // return attacks;
 
                 }
 
@@ -434,10 +478,6 @@ class Board {
                 if (p.moves.length) {
 
                     const K = p.moves.reduce((sum, m) => {
-                        // I will have a distance to enemy king.
-                        // If lategame and I am winning, then I want to double the koeficient
-                        // if lategame and I am losing, then I want to have control around my king.
-                        // Distance = most extended coordinate. 11 - 22 is 1 distance.
 
                         const x_difference = Math.abs(m.x - enemy_king.x);
                         const y_difference = Math.abs(m.y - enemy_king.y);
@@ -450,7 +490,38 @@ class Board {
                         if ((my_material > enemy_material && enemy_material < 115)) base++;
                         const k = base / (4 + res);
 
-                        return sum + k;
+                        let A = 1;
+                        if (m.occupation && m.occupation.acronym !== 'k') {
+                            A += (m.occupation.value * 0.1);
+                            // Also their occupation stage...
+
+                            if (m.occupation.color !== color) {
+
+                                const reducer = aj => {
+                                    if (!aj.length) return 0;
+                                    return aj.reduce((s, a) => s + a.occupation.value);
+                                }
+                                const defenses = m.attacked.filter(a => a.occupation.color === m.occupation.color);
+                                const defenses_value = reducer(defenses);
+                                const collateral_attacks = m.attacked.filter(a => a.occupation.color !== m.occupation.color);
+                                const offense_value = reducer(collateral_attacks);
+
+                                if (defenses.length + 1 < collateral_attacks.length) {
+                                    A *= 0.4;
+                                }
+                                else if (defenses.length < collateral_attacks.length && defenses_value <= offense_value) {
+                                    A *= 1.3;
+                                }
+                                else if (defenses.length == collateral_attacks.length && defenses_value <= offense_value) {
+                                    A *= 1.1;
+                                }
+                                else {
+                                    return sum + 0;
+                                }
+                            }
+                        }
+
+                        return sum + (k * A);
 
                     }, 0);
 
@@ -461,7 +532,7 @@ class Board {
                 // Now we will make attacks
                 // I like taking material
 
-                EVAL[3] = (my_material - enemy_material);
+                EVAL[3] = (my_material - enemy_material)/2; // The 3 condition complements 6. So I decided to halve it.
 
                 const panic_k = _ => {
                     const white = x.panic.w;
@@ -494,7 +565,7 @@ class Board {
                 }
 
                 EVAL[5] = king_security();
-                EVAL[6] = 139 - enemy_material; // I am just making trades valuable.
+                EVAL[6] = (139 - enemy_material) / 2; // I am just making trades valuable.
 
             }
 
@@ -527,7 +598,15 @@ class Board {
             });
         });
 
-        return my_moves;
+        // this.board.UF.quickSortMoves(results, 0, results.length - 1, true)
+
+        const results_sorted = x.UF.quickSortMoves(my_moves, 0, my_moves.length - 1, true);
+        // I will only take 5 best (or what is available and create possible counter-plays);
+
+        const favourites = results_sorted.slice(0, 6);
+        console.log(favourites);
+
+        return results_sorted;
 
     }
 
@@ -708,8 +787,9 @@ class Piece {
 
     a_push (tile) {
         if (this.forbid_movement) return;
+        if (this.x === false || this.y === false) return;
         tile.attack(this.board.UF.getTile(this.x, this.y));
-        if (tile.occupation.color == this.color) return;
+        if (tile.occupation.color === this.color) return;
         this.moves.push(tile);
     }
 
@@ -884,22 +964,34 @@ class Knight extends Piece {
     }
 
     f_moves() {
-        for (let i = 1; i < 3; i++) {
-            for (let j = 1; j < 3; j++) {
-                if (i + j == 3 || Math.abs(i - j) == 3) {
-                    const generator = combinations(i, j, this.x, this.y);
-                    for (let _ = 0; _ < 4; _++) {
-                        let s_gt = this.board.UF.getTile(...generator.next().value)
-                        if (!s_gt) continue;
-                        if (s_gt.occupation.color != this.color) {
-                            this.a_push(s_gt);
-                            continue;
-                        }
-                        s_gt.attack(this.board.UF.getTile(this.x, this.y));
-                    }
-                }
+
+        const long = 2;
+        const short = 1;
+
+        const validation_thing = (x, y) => {
+            const tile = this.board.UF.getTile(x, y);
+            if (!tile) return;
+
+            if (tile.occupation && tile.occupation.color === this.color) {
+                tile.attack(this.board.UF.getTile(this.x, this.y));
+                return;
             }
-        }
+
+            this.a_push(tile);
+
+        };
+
+        // Now just initializing the calls.
+        // I will be calling for different combinations of long and short.
+        validation_thing(this.x + long, this.y + short);
+        validation_thing(this.x + long, this.y - short);
+        validation_thing(this.x - long, this.y + short);
+        validation_thing(this.x - long, this.y - short);
+        validation_thing(this.x + short, this.y + long);
+        validation_thing(this.x + short, this.y - long);
+        validation_thing(this.x - short, this.y + long);
+        validation_thing(this.x - short, this.y - long);
+
     }
 }
 
@@ -1161,14 +1253,6 @@ class Info {
     }
 }
 
-// Used for knight jumps
-function* combinations(i, j, x, y) {
-    yield [x + i, y + j];
-    yield [x - i, y - j];
-    yield [x + i, y - j];
-    yield [x - i, y + j];
-}
-
 class Store {
     constructor() {
         this.moves = [];
@@ -1292,6 +1376,7 @@ class Mover {
         this.deuce_no_moves(-1);
 
         if (this.board.test) return;
+        console.log(this.board);
 
         if (this.player > 0 || this.board.test) return;
 
@@ -1389,12 +1474,11 @@ class Al_move {
 
     self_weighted_move() {
         const results = this.board.eval(this.board.Al_control);
-        const results_sorted = this.board.UF.quickSortMoves(results, 0, results.length - 1);
-        console.log(results_sorted);
+        console.log(results);
 
-        for (let i = 0; i < results_sorted.length; i++) {
-            const from = new Selected(this.board.UF.getTile(results_sorted[i].from.x, results_sorted[i].from.y));
-            const to   = new Info    (this.board.UF.getTile(results_sorted[i].to  .x, results_sorted[i].to.  y));
+        for (let i = 0; i < results.length; i++) {
+            const from = new Selected(this.board.UF.getTile(results[i].from.x, results[i].from.y));
+            const to   = new Info    (this.board.UF.getTile(results[i].to  .x, results[i].to.  y));
             if (this.board.core(from, to, true) === false) continue;
             break;
         }
@@ -1713,18 +1797,29 @@ class Utile_functions {
      * @param {Array} items Array to sort
      * @param {number} left Sort from here
      * @param {number} right Sort to this index
+     * @param {boolean} reverse Should I return it reversed?
      * @returns Index of the next middle
      */
-    partition(items, left, right) {
+    partition(items, left, right, reverse) {
         let pivot   = items[Math.floor((right + left) / 2)], //middle element
             i       = left, //left pointer
             j       = right; //right pointer
         while (i <= j) {
-            while (items[i].value > pivot.value) {
-                i++;
+            if (reverse) {
+                while (items[i].value > pivot.value) {
+                    i++;
+                }
+                while (items[j].value < pivot.value) {
+                    j--;
+                }
             }
-            while (items[j].value < pivot.value) {
-                j--;
+            else {
+                while (items[i].value < pivot.value) {
+                    i++;
+                }
+                while (items[j].value > pivot.value) {
+                    j--;
+                }
             }
             if (i <= j) {
                 this.swap(items, i, j); //sawpping two elements
@@ -1739,22 +1834,35 @@ class Utile_functions {
      * @param {array} items Original array to be sorted
      * @param {number} left Initial position, typically 0
      * @param {number} right Initial end position, typically items.length - 1
+     * @param {boolean} reverse Should I return it reversed?
      * @returns Sorted array
      */
-    quickSortMoves(items, left, right) {
+    quickSortMoves(items, left, right, reverse = false) {
         let index;
         if (items.length > 1) {
-            index = this.partition(items, left, right);
+            index = this.partition(items, left, right, reverse);
             if (left < index - 1) { //more elements on the left side of the pivot
-                this.quickSortMoves(items, left, index - 1);
+                this.quickSortMoves(items, left, index - 1, reverse);
             }
             if (index < right) { //more elements on the right side of the pivot
-                this.quickSortMoves(items, index, right);
+                this.quickSortMoves(items, index, right, reverse);
             }
         }
         return items;
     }
 
+}
+
+/**
+ * Quite literally a utile class used for quicksort. Because who likes handcrafting JSON
+ * @param {any} information Information that is to be preserved with quicksort
+ * @param {number} Value associated with this information
+ */
+class ValueContainer {
+    constructor(information, value) {
+        this.information = information;
+        this.value = value;
+    }
 }
 
 function Chess (fen) {
