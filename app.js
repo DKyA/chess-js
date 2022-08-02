@@ -420,56 +420,56 @@ class Board {
                 // Calculating piece danger
                 const attacked = _ => {
 
-                    const sort_attacks = subset => {
-                        const packets = subset.map(s => new ValueContainer(s, s.occupation.value));
-                        const sorted = x.UF.quickSortMoves(packets, 0, packets.length - 1);
-                        return sorted.map(s => s.information);
-                    }
+                    // const sort_attacks = subset => {
+                    //     const packets = subset.map(s => new ValueContainer(s, s.occupation.value));
+                    //     const sorted = x.UF.quickSortMoves(packets, 0, packets.length - 1);
+                    //     return sorted.map(s => s.information);
+                    // }
 
-                    const threats_raw = p_t.attacked.filter(a => a.occupation.color !== color);
-                    const supports_raw = p_t.attacked.filter(a => a.occupation.color === color);
+                    // const threats_raw = p_t.attacked.filter(a => a.occupation.color !== color);
+                    // const supports_raw = p_t.attacked.filter(a => a.occupation.color === color);
 
-                    const threats = sort_attacks(threats_raw);
-                    const supports = sort_attacks(supports_raw);
+                    // const threats = sort_attacks(threats_raw);
+                    // const supports = sort_attacks(supports_raw);
 
-                    if (!threats.length) return 0;
-                    if (!supports.length && threats.length) return - p.value;
+                    // if (!threats.length) return 0;
+                    // if (!supports.length && threats.length) return - p.value;
 
-                    // Multi-factor thing. 1 - are lower-value pieces taking me? Yes? Probably not a great idea. He can deny.
-                    for (const t of threats) {
-                        if (t.occupation.value < p.value) return (t.occupation.value - p.value);
-                    }
+                    // // Multi-factor thing. 1 - are lower-value pieces taking me? Yes? Probably not a great idea. He can deny.
+                    // for (const t of threats) {
+                    //     if (t.occupation.value < p.value) return (t.occupation.value - p.value);
+                    // }
 
-                    let Koeficient = 0;
+                    // let Koeficient = 0;
 
-                    supports.unshift(p_t);
+                    // supports.unshift(p_t);
 
-                    for (let i = 0; i < (threats.length > supports.length) ? threats.length : supports.length; i++) {
+                    // for (let i = 0; i < (threats.length > supports.length) ? threats.length : supports.length; i++) {
 
-                        if (!threats[i] || !supports[i]) {
-                            const mod = (threats.length) ? -1 : 1;
-                            Koeficient += mod * ((mod > 0) ? supports : threats).reduce((sum, i) => sum + i.occupation.value, 0);
-                            break;
-                        }
+                    //     if (!threats[i] || !supports[i]) {
+                    //         const mod = (threats.length) ? -1 : 1;
+                    //         Koeficient += mod * ((mod > 0) ? supports : threats).reduce((sum, i) => sum + i.occupation.value, 0);
+                    //         break;
+                    //     }
 
-                        if (threats[i].value > supports[i].value) return 0;
+                    //     if (threats[i].value > supports[i].value) return 0;
 
-                        Koeficient += (supports[i].occupation.value - threats[i].occupation.value);
+                    //     Koeficient += (supports[i].occupation.value - threats[i].occupation.value);
 
-                    }
+                    // }
 
-                    return Koeficient;
+                    // return Koeficient;
 
-                    // let attacks = - p.value, active = false;
-                    // p_t.attacked.forEach(a => {
-                    //     attacks += (a.occupation.value * (a.occupation.color === color) ? 1 : -1);
-                    //     if (a.occupation.color === color) return;
-                    //     active = true;
-                    // });
+                    let attacks = - p.value, active = false;
+                    p_t.attacked.forEach(a => {
+                        attacks += (a.occupation.value * (a.occupation.color === color) ? 1 : -1);
+                        if (a.occupation.color === color) return;
+                        active = true;
+                    });
 
-                    // if (!active) return 0;
+                    if (!active) return 0;
 
-                    // return attacks;
+                    return attacks;
 
                 }
 
@@ -574,17 +574,20 @@ class Board {
 
         }
 
-        // My positions:
 
-        const my_moves = [];
-
-        const x = new Board(true);
-        x.start(this.Recorder.generate_report(-1), true, color);
-        x.pieces.forEach(p => {
-            if (p.color !== color) return;
+        /**
+         * A simple shorthand function for simulating given space
+         * @param {Piece} p A piece that is being moved with
+         * @param {Board} x Mother board for given iteration
+         * @param {string} fen A starter for a new board
+         * @param {int} starter A color to start
+         * @returns A partial array consisting of partial results (the strange JSON thing.) Has to be pushed to the full result.
+         */
+        const Universe_simulation = (p, x, fen, starter) => {
+            const res = [];
             p.moves.forEach(m => {
                 const y = new Board(true);
-                y.start(this.Recorder.generate_report(-1), true, color);
+                y.start(fen, true, starter);
                 const from = new Selected(y.UF.getTile(p.x, p.y));
                 const to = new Info(y.UF.getTile(m.x, m.y));
 
@@ -593,9 +596,20 @@ class Board {
                 y.MI.next_turn();
 
                 const r = rating(y);
-                my_moves.push({from: x.UF.getTile(p.x, p.y), to: m, value: rating(y).reduce((sum, a) => sum + a, 0), individuals: r});
+                res.push({from: x.UF.getTile(p.x, p.y), to: m, value: rating(y).reduce((sum, a) => sum + a, 0), individuals: r, universe: y});
 
             });
+
+            return res;
+
+        }
+
+        const my_moves = [];
+        const x = new Board(true);
+        x.start(this.Recorder.generate_report(-1), true, color);
+        x.pieces.forEach(p => {
+            if (p.color !== color) return;
+            my_moves.push(...Universe_simulation(p, x, this.Recorder.generate_report(-1), color));
         });
 
         // this.board.UF.quickSortMoves(results, 0, results.length - 1, true)
@@ -604,7 +618,23 @@ class Board {
         // I will only take 5 best (or what is available and create possible counter-plays);
 
         const favourites = results_sorted.slice(0, 6);
-        console.log(favourites);
+
+        // Now I will create universes for all of them and evaluate.
+        const counterplays = favourites.map(f => {
+            const human_moves = [];
+            const z = new Board(true);
+            z.start(f.universe.Recorder.generate_report(-1), true, color * -1);
+            z.pieces.forEach(p => {
+                if (p.color === color) return;
+                human_moves.push(...Universe_simulation(p, z, f.universe.Recorder.generate_report(-1), color * -1));
+            });
+
+            return this.UF.quickSortMoves(human_moves, 0, human_moves.length - 1, true);
+
+        });
+
+        console.log(counterplays);
+        // Now I just need to compare and subtract...
 
         return results_sorted;
 
